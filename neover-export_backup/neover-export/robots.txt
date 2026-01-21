@@ -1,9 +1,4 @@
 User-agent: *
 Allow: /
-Disallow: /assets/
-Disallow: /images/
-
+Disallow: /admin/
 Sitemap: https://neover.com/sitemap.xml
-
-# Crawl-delay for bots
-Crawl-delay: 1

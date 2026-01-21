@@ -1,20 +1,10 @@
 {
-  "name": "neover-site",
+  "name": "neover",
   "version": "1.0.0",
-  "description": "Site vitrine NEOVER - Solutions Énergétiques",
-  "main": "server.js",
+  "type": "commonjs",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "start": "node server.js"
   },
-  "keywords": [
-    "neover",
-    "energie",
-    "pompes-a-chaleur",
-    "panneaux-solaires"
-  ],
-  "author": "NEOVER",
-  "license": "MIT",
   "dependencies": {
     "express": "^4.21.2"
   }
