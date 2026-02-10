@@ -15,6 +15,6 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Serveur NEOVER running on http://localhost:${PORT}`);
   console.log(`📧 Email: contact.neover@gmail.com`);
-  console.log(`📞 Téléphones: 07 62 20 25 06 / 06 58 03 82 50`);
+  console.log(`📞 Téléphone: 09 72 73 03 95`);
   console.log(`📍 Localisation: 32 RUE DE PARIS 92100 BOULOGNE-BILLANCOURT`);
 });
