@@ -17,4 +17,6 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`📧 Email: contact.neover@gmail.com`);
   console.log(`📞 Téléphone: 09 72 73 03 95`);
   console.log(`📍 Localisation: 32 RUE DE PARIS 92100 BOULOGNE-BILLANCOURT`);
+  console.log(`📋 SIREN: 993 919 117`);
+  console.log(`📋 SIRET: 993 919 117 00016`);
 });
