@@ -1,0 +1,37 @@
+body[data-page="about"] section,
+body[data-page="services"] section,
+body[data-page="contact"] section {
+  display: none !important;
+}
+
+body[data-page="home"] section#about,
+body[data-page="home"] section#services,
+body[data-page="home"] section#contact,
+body[data-page="home"] #mentions-legales {
+  display: none !important;
+}
+
+body[data-page="about"] section#about,
+body[data-page="services"] section#services,
+body[data-page="contact"] section#contact {
+  display: block !important;
+  min-height: calc(100vh - 5rem);
+}
+
+.neover-active-link {
+  color: #00994c !important;
+  font-weight: 600;
+}
+
+.neover-home-link {
+  color: #374151;
+  transition: color 0.2s ease;
+}
+
+.neover-home-link:hover {
+  color: #00994c;
+}
+
+nav img[alt="NEOVER Logo"] {
+  cursor: pointer;
+}

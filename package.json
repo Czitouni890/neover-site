@@ -1,16 +1,16 @@
 {
   "name": "neover",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "version": "2.0.0",
+  "private": true,
   "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js && node --check neover-export/assets/multipage.js"
+  },
+  "engines": {
+    "node": "22.x"
+  },
   "dependencies": {
-    "express": "^5.2.1"
+    "express": "^4.21.2"
   }
 }
