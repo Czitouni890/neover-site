@@ -1,5 +1,6 @@
 const express = require('express');
 const path = require('path');
+const nodemailer = require('nodemailer');
 
 const app = express();
 const SITE_DIR = path.join(__dirname, 'neover-export');
@@ -13,6 +14,58 @@ app.get('/health', (_req, res) => {
 });
 
 
+
+const CONTACT_TO_EMAIL = process.env.CONTACT_TO_EMAIL || 'contact.neover@gmail.com';
+
+function createMailer() {
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    return null;
+  }
+
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS
+    }
+  });
+}
+
+function formatLeadEmail(lead) {
+  return [
+    'Nouvelle demande depuis le site NEOVER',
+    '',
+    `Nom : ${lead.name}`,
+    `Telephone : ${lead.phone}`,
+    `Email : ${lead.email}`,
+    `Projet : ${lead.project}`,
+    `Page : ${lead.page || '/'}`,
+    `Date : ${lead.createdAt}`,
+    '',
+    'Message :',
+    lead.message
+  ].join('\n');
+}
+
+async function sendLeadEmail(lead) {
+  const mailer = createMailer();
+  if (!mailer) {
+    console.warn('NEOVER_CONTACT_EMAIL_SKIPPED Missing SMTP configuration');
+    return false;
+  }
+
+  await mailer.sendMail({
+    from: process.env.CONTACT_FROM_EMAIL || process.env.SMTP_USER,
+    to: CONTACT_TO_EMAIL,
+    replyTo: lead.email,
+    subject: `Nouvelle demande NEOVER - ${lead.project}`,
+    text: formatLeadEmail(lead)
+  });
+
+  return true;
+}
 function normalizeField(value, maxLength) {
   return String(value || '').trim().slice(0, maxLength);
 }
@@ -52,6 +105,12 @@ app.post('/api/contact', async (req, res) => {
   }
 
   console.info('NEOVER_CONTACT_LEAD', JSON.stringify(lead));
+
+  try {
+    await sendLeadEmail(lead);
+  } catch (error) {
+    console.error('NEOVER_CONTACT_EMAIL_ERROR', error.message);
+  }
 
   if (process.env.CONTACT_WEBHOOK_URL) {
     try {

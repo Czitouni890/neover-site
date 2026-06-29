@@ -83,19 +83,34 @@
     }
   }
 
-  function setFieldError(form, fieldName, message) {
-    const field = form.querySelector(`[name="${fieldName}"]`);
-    const error = form.querySelector(`[data-field-error="${fieldName}"]`);
-    if (!field || !error) return;
+  function getField(form, aliases) {
+    const fields = Array.from(form.querySelectorAll("input, select, textarea"));
+    return fields.find((field) => {
+      const haystack = [
+        field.name,
+        field.id,
+        field.placeholder,
+        field.getAttribute("aria-label"),
+        field.closest("label")?.textContent
+      ].filter(Boolean).join(" ").toLowerCase();
+      return aliases.some((alias) => haystack.includes(alias));
+    });
+  }
 
-    field.classList.toggle("neover-field-invalid", Boolean(message));
-    field.setAttribute("aria-invalid", message ? "true" : "false");
-    error.textContent = message || "";
+  function ensureFieldName(field, name) {
+    if (field && !field.name) field.name = name;
+    return field;
   }
 
   function showFormStatus(form, type, message) {
-    const status = form.querySelector(".neover-form-status");
-    if (!status) return;
+    let status = form.querySelector(".neover-form-status");
+    if (!status) {
+      status = document.createElement("p");
+      status.className = "neover-form-status";
+      status.setAttribute("role", "status");
+      status.setAttribute("aria-live", "polite");
+      form.append(status);
+    }
 
     status.hidden = false;
     status.className = `neover-form-status neover-form-status-${type}`;
@@ -106,91 +121,74 @@
     if (current.key !== "contact") return;
 
     const section = document.querySelector("section#contact");
-    if (!section || section.querySelector(".neover-contact-form")) return;
+    if (!section) return;
 
-    const block = document.createElement("div");
-    block.className = "neover-contact-form-block";
-    block.innerHTML = `
-      <div class="neover-contact-form-copy">
-        <p class="neover-form-kicker">Demande de devis</p>
-        <h2>Parlez-nous de votre projet</h2>
-        <p>D&eacute;crivez rapidement votre besoin. L'&eacute;quipe NEOVER vous recontacte pour qualifier votre demande et vous orienter vers la solution adapt&eacute;e.</p>
-      </div>
-      <form class="neover-contact-form" novalidate>
-        <input type="text" name="website" tabindex="-1" autocomplete="off" class="neover-honeypot" aria-hidden="true" />
-        <input type="hidden" name="page" value="${window.location.pathname}" />
+    const injectedForm = section.querySelector(".neover-contact-form-block");
+    injectedForm?.remove();
 
-        <div class="neover-form-grid">
-          <label>
-            <span>Nom complet</span>
-            <input name="name" type="text" autocomplete="name" required minlength="2" placeholder="Votre nom" />
-            <small data-field-error="name"></small>
-          </label>
+    const form = section.querySelector("form");
+    if (!form || form.dataset.neoverContactReady === "true") return;
 
-          <label>
-            <span>T&eacute;l&eacute;phone</span>
-            <input name="phone" type="tel" autocomplete="tel" required placeholder="09 72 73 03 95" />
-            <small data-field-error="phone"></small>
-          </label>
-        </div>
+    const nameField = ensureFieldName(getField(form, ["nom", "name"]), "name");
+    const phoneField = ensureFieldName(getField(form, ["t\u00e9l", "tel", "phone", "portable"]), "phone");
+    const emailField = ensureFieldName(getField(form, ["email", "mail", "e-mail"]), "email");
+    const projectField = ensureFieldName(getField(form, ["projet", "service", "besoin", "type"]), "project");
+    const messageField = ensureFieldName(getField(form, ["message", "demande", "description"]), "message");
 
-        <div class="neover-form-grid">
-          <label>
-            <span>Email</span>
-            <input name="email" type="email" autocomplete="email" required placeholder="vous@email.fr" />
-            <small data-field-error="email"></small>
-          </label>
+    if (!nameField || !phoneField || !emailField || !messageField) return;
 
-          <label>
-            <span>Type de projet</span>
-            <select name="project" required>
-              <option value="">S&eacute;lectionner</option>
-              <option>Panneaux solaires</option>
-              <option>Pompe &agrave; chaleur</option>
-              <option>Isolation thermique</option>
-              <option>Borne de recharge</option>
-              <option>Ballon thermodynamique</option>
-              <option>Autre demande</option>
-            </select>
-            <small data-field-error="project"></small>
-          </label>
-        </div>
+    if (!projectField) {
+      const hiddenProject = document.createElement("input");
+      hiddenProject.type = "hidden";
+      hiddenProject.name = "project";
+      hiddenProject.value = "Demande de contact";
+      form.append(hiddenProject);
+    }
 
-        <label>
-          <span>Message</span>
-          <textarea name="message" rows="5" required minlength="10" placeholder="Ville, type de logement, besoin, disponibilit&eacute;..."></textarea>
-          <small data-field-error="message"></small>
-        </label>
+    if (!form.querySelector('[name="page"]')) {
+      const pageField = document.createElement("input");
+      pageField.type = "hidden";
+      pageField.name = "page";
+      pageField.value = window.location.pathname;
+      form.append(pageField);
+    }
 
-        <label class="neover-consent">
-          <input name="consent" type="checkbox" required />
-          <span>J'accepte que NEOVER utilise ces informations pour me recontacter au sujet de ma demande.</span>
-        </label>
-        <small data-field-error="consent" class="neover-consent-error"></small>
+    if (!form.querySelector('[name="website"]')) {
+      const honeypot = document.createElement("input");
+      honeypot.type = "text";
+      honeypot.name = "website";
+      honeypot.tabIndex = -1;
+      honeypot.autocomplete = "off";
+      honeypot.className = "neover-honeypot";
+      honeypot.setAttribute("aria-hidden", "true");
+      form.append(honeypot);
+    }
 
-        <button type="submit" class="neover-submit-button">Envoyer ma demande</button>
-        <p class="neover-form-status" role="status" aria-live="polite" hidden></p>
-      </form>
-    `;
+    if (!form.querySelector('[name="consent"]')) {
+      const consent = document.createElement("input");
+      consent.type = "hidden";
+      consent.name = "consent";
+      consent.value = "true";
+      form.append(consent);
+    }
 
-    section.append(block);
+    const submitButton = form.querySelector("button[type='submit'], input[type='submit']");
+    const originalButtonText = submitButton?.tagName === "INPUT" ? submitButton.value : submitButton?.textContent;
 
-    const form = block.querySelector("form");
-    const submitButton = form.querySelector("button[type='submit']");
-
+    form.dataset.neoverContactReady = "true";
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
 
-      ["name", "phone", "email", "project", "message", "consent"].forEach((field) => {
-        setFieldError(form, field, "");
-      });
-
       const formData = new FormData(form);
       const payload = Object.fromEntries(formData.entries());
-      payload.consent = formData.has("consent");
+      payload.consent = formData.get("consent") !== "false";
+      payload.project = payload.project || "Demande de contact";
 
-      submitButton.disabled = true;
-      submitButton.textContent = "Envoi en cours...";
+      if (submitButton) {
+        submitButton.disabled = true;
+        if (submitButton.tagName === "INPUT") submitButton.value = "Envoi en cours...";
+        else submitButton.textContent = "Envoi en cours...";
+      }
 
       try {
         const response = await fetch("/api/contact", {
@@ -201,10 +199,7 @@
         const result = await response.json().catch(() => ({}));
 
         if (!response.ok || !result.ok) {
-          Object.entries(result.errors || {}).forEach(([field, message]) => {
-            setFieldError(form, field, message);
-          });
-          showFormStatus(form, "error", "Merci de v\u00e9rifier les champs indiqu\u00e9s avant d'envoyer votre demande.");
+          showFormStatus(form, "error", "Merci de v\u00e9rifier les informations du formulaire avant l'envoi.");
           return;
         }
 
@@ -213,12 +208,14 @@
       } catch (_error) {
         showFormStatus(form, "error", "L'envoi n'a pas abouti. Vous pouvez aussi appeler NEOVER au 09 72 73 03 95.");
       } finally {
-        submitButton.disabled = false;
-        submitButton.textContent = "Envoyer ma demande";
+        if (submitButton) {
+          submitButton.disabled = false;
+          if (submitButton.tagName === "INPUT") submitButton.value = originalButtonText || "Envoyer";
+          else submitButton.textContent = originalButtonText || "Envoyer";
+        }
       }
     });
   }
-
   function enhancePage() {
     installContactForm();
     improveNavigation();
