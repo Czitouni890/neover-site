@@ -20,6 +20,25 @@ function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+function getContactWebhookUrl() {
+  return process.env.CONTACT_WEBHOOK_URL || 'https://formsubmit.co/ajax/contact.neover@gmail.com';
+}
+
+function formatWebhookPayload(lead) {
+  return {
+    _subject: `Nouvelle demande NEOVER - ${lead.project}`,
+    _template: 'table',
+    _captcha: 'false',
+    _replyto: lead.email,
+    name: lead.name,
+    phone: lead.phone,
+    email: lead.email,
+    project: lead.project,
+    message: lead.message,
+    page: lead.page,
+    createdAt: lead.createdAt
+  };
+}
 app.post('/api/contact', async (req, res) => {
   const body = req.body || {};
 
@@ -52,21 +71,22 @@ app.post('/api/contact', async (req, res) => {
 
   console.info('NEOVER_CONTACT_LEAD', JSON.stringify(lead));
 
-  if (process.env.CONTACT_WEBHOOK_URL) {
-    try {
-      const response = await fetch(process.env.CONTACT_WEBHOOK_URL, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(lead),
-        signal: AbortSignal.timeout(5000)
-      });
+  try {
+    const response = await fetch(getContactWebhookUrl(), {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify(formatWebhookPayload(lead)),
+      signal: AbortSignal.timeout(5000)
+    });
 
-      if (!response.ok) {
-        console.error('NEOVER_CONTACT_WEBHOOK_ERROR', response.status, await response.text());
-      }
-    } catch (error) {
-      console.error('NEOVER_CONTACT_WEBHOOK_ERROR', error.message);
+    if (!response.ok) {
+      console.error('NEOVER_CONTACT_WEBHOOK_ERROR', response.status, await response.text());
     }
+  } catch (error) {
+    console.error('NEOVER_CONTACT_WEBHOOK_ERROR', error.message);
   }
 
   res.status(200).json({ ok: true });
