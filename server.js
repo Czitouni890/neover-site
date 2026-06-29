@@ -5,9 +5,72 @@ const app = express();
 const SITE_DIR = path.join(__dirname, 'neover-export');
 
 app.disable('x-powered-by');
+app.use(express.json({ limit: '25kb' }));
+app.use(express.urlencoded({ extended: false, limit: '25kb' }));
 
 app.get('/health', (_req, res) => {
   res.status(200).json({ status: 'ok' });
+});
+
+
+function normalizeField(value, maxLength) {
+  return String(value || '').trim().slice(0, maxLength);
+}
+
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+app.post('/api/contact', async (req, res) => {
+  const body = req.body || {};
+
+  if (body.website) {
+    return res.status(200).json({ ok: true });
+  }
+
+  const lead = {
+    name: normalizeField(body.name, 80),
+    phone: normalizeField(body.phone, 30),
+    email: normalizeField(body.email, 120),
+    project: normalizeField(body.project, 80),
+    message: normalizeField(body.message, 1200),
+    consent: body.consent === true || body.consent === 'on' || body.consent === 'true',
+    page: normalizeField(body.page, 120),
+    createdAt: new Date().toISOString()
+  };
+
+  const errors = {};
+  if (lead.name.length < 2) errors.name = 'Nom requis';
+  if (!/^[-+().\s\d]{8,30}$/.test(lead.phone)) errors.phone = 'Telephone invalide';
+  if (!isValidEmail(lead.email)) errors.email = 'Email invalide';
+  if (!lead.project) errors.project = 'Type de projet requis';
+  if (lead.message.length < 10) errors.message = 'Message trop court';
+  if (!lead.consent) errors.consent = 'Consentement requis';
+
+  if (Object.keys(errors).length > 0) {
+    return res.status(400).json({ ok: false, errors });
+  }
+
+  console.info('NEOVER_CONTACT_LEAD', JSON.stringify(lead));
+
+  if (process.env.CONTACT_WEBHOOK_URL) {
+    try {
+      const response = await fetch(process.env.CONTACT_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(lead),
+        signal: AbortSignal.timeout(5000)
+      });
+
+      if (!response.ok) {
+        console.error('NEOVER_CONTACT_WEBHOOK_ERROR', response.status, await response.text());
+      }
+    } catch (error) {
+      console.error('NEOVER_CONTACT_WEBHOOK_ERROR', error.message);
+    }
+  }
+
+  res.status(200).json({ ok: true });
 });
 
 app.use(express.static(SITE_DIR, {
