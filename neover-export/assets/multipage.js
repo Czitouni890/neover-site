@@ -199,7 +199,12 @@
         const result = await response.json().catch(() => ({}));
 
         if (!response.ok || !result.ok) {
-          showFormStatus(form, "error", "Merci de v\u00e9rifier les informations du formulaire avant l'envoi.");
+          const message = response.status === 429
+            ? "Trop de tentatives. Merci de patienter 15 minutes avant de r\u00e9essayer."
+            : response.status === 400
+              ? "Merci de v\u00e9rifier les informations du formulaire avant l'envoi."
+              : "L'envoi n'a pas abouti. Merci de r\u00e9essayer plus tard ou d'appeler NEOVER au 09 72 73 03 95.";
+          showFormStatus(form, "error", message);
           return;
         }
 

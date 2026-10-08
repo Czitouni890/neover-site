@@ -1,10 +1,22 @@
 const express = require('express');
 const path = require('path');
+const { randomUUID } = require('node:crypto');
+const { rateLimit } = require('express-rate-limit');
 
 const app = express();
 const SITE_DIR = path.join(__dirname, 'neover-export');
 
 app.disable('x-powered-by');
+// Render forwards public requests through its reverse proxy.
+app.set('trust proxy', process.env.RENDER === 'true' ? 1 : false);
+const contactLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { ok: false, code: 'RATE_LIMITED' }
+});
+app.use('/api/contact', contactLimiter);
 app.use(express.json({ limit: '25kb' }));
 app.use(express.urlencoded({ extended: false, limit: '25kb' }));
 
@@ -69,7 +81,7 @@ app.post('/api/contact', async (req, res) => {
     return res.status(400).json({ ok: false, errors });
   }
 
-  console.info('NEOVER_CONTACT_LEAD', JSON.stringify(lead));
+  const requestId = randomUUID();
 
   try {
     const response = await fetch(getContactWebhookUrl(), {
@@ -82,13 +94,19 @@ app.post('/api/contact', async (req, res) => {
       signal: AbortSignal.timeout(5000)
     });
 
-    if (!response.ok) {
-      console.error('NEOVER_CONTACT_WEBHOOK_ERROR', response.status, await response.text());
+    const result = await response.json().catch(() => null);
+    const isFormSubmit = new URL(getContactWebhookUrl()).hostname === 'formsubmit.co';
+    if (!response.ok || result?.success === false || result?.success === 'false' ||
+        result?.ok === false || (isFormSubmit && result?.success !== true && result?.success !== 'true')) {
+      console.error('NEOVER_CONTACT_FAILED', JSON.stringify({ requestId, status: response.status }));
+      return res.status(502).json({ ok: false, code: 'DELIVERY_FAILED' });
     }
-  } catch (error) {
-    console.error('NEOVER_CONTACT_WEBHOOK_ERROR', error.message);
+  } catch (_error) {
+    console.error('NEOVER_CONTACT_FAILED', JSON.stringify({ requestId, reason: 'unavailable' }));
+    return res.status(502).json({ ok: false, code: 'DELIVERY_FAILED' });
   }
 
+  console.info('NEOVER_CONTACT_SENT', JSON.stringify({ requestId }));
   res.status(200).json({ ok: true });
 });
 
@@ -102,6 +120,10 @@ app.get('*', (_req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Serveur NEOVER disponible sur le port ${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Serveur NEOVER disponible sur le port ${PORT}`);
+  });
+}
+
+module.exports = app;
