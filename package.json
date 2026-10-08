@@ -5,6 +5,8 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
+    "test": "node --test test/contact.test.cjs",
+    "test:ui": "node test/contact-ui.cjs",
     "check": "node --check server.js && node --check neover-export/assets/multipage.js"
   },
   "engines": {
@@ -13,5 +15,8 @@
   "dependencies": {
     "express": "^4.21.2",
     "express-rate-limit": "^8.7.1"
+  },
+  "devDependencies": {
+    "playwright": "^1.64.0"
   }
 }
