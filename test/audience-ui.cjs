@@ -30,6 +30,7 @@ const { createAnalytics, sqliteStore } = require('../analytics');
     page.on('response', response => { if (response.url().endsWith('/api/audience/event') && response.status() === 204) recorded++; });
     await page.goto(base + '/contact.html');
     await page.locator('#neover-audience-consent').waitFor();
+    assert.equal(await page.locator('#neover-audience-consent a').getAttribute('href'), '/confidentialite.html');
     assert.equal(recorded, 0);
     await page.getByRole('button', { name: 'Refuser', exact: true }).click();
     await page.goto(base + '/services.html');
@@ -67,8 +68,16 @@ const { createAnalytics, sqliteStore } = require('../analytics');
     await page.goto(base + '/services.html');
     await page.locator('#neover-audience-preferences').waitFor();
     assert.equal(recorded, before);
-    await page.goto(base + '/mentions-legales.html#audience');
-    await page.locator('#audience').waitFor();
+    await page.goto(base + '/mentions-legales.html');
+    await page.locator('#neover-audience-preferences').waitFor();
+    assert.equal(await page.getByRole('heading', { name: "Mesure d'audience", exact: true }).count(), 0);
+    await page.goto(base + '/confidentialite.html');
+    await page.getByRole('heading', { name: "Mesure d'audience", exact: true }).waitFor();
+    for (const width of [390, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+      await page.screenshot({ path: `preview-ui/privacy-${width}.png`, fullPage: true });
+    }
     assert.deepEqual(errors, []);
     console.log('PASS: refusal records nothing; three pages count one visitor and one visit; dashboard mobile/desktop, CSV download, withdrawal and privacy notice.');
   } finally {
