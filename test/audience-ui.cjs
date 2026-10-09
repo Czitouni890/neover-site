@@ -1,0 +1,80 @@
+const { chromium } = require('playwright');
+const express = require('express');
+const fs = require('node:fs');
+const path = require('node:path');
+const os = require('node:os');
+const { randomUUID } = require('node:crypto');
+const assert = require('node:assert/strict');
+const { createAnalytics, sqliteStore } = require('../analytics');
+
+(async () => {
+  const filename = path.join(os.tmpdir(), `neover-ui-${randomUUID()}.sqlite`);
+  const store = sqliteStore(filename);
+  const password = 'ui-test-password-not-for-production';
+  const env = { ANALYTICS_ADMIN_PASSWORD: password, ANALYTICS_HASH_SECRET: 'ui-test-hashing-secret-not-for-production' };
+  const analytics = createAnalytics({ env, store });
+  const app = express();
+  app.use(express.json()); app.use(analytics.router);
+  app.use(express.static(path.join(__dirname, '../neover-export')));
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise(resolve => server.once('listening', resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  let browser;
+  try {
+    browser = await chromium.launch({ channel: 'msedge', headless: true });
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, httpCredentials: { username: 'admin', password } });
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    let recorded = 0;
+    page.on('response', response => { if (response.url().endsWith('/api/audience/event') && response.status() === 204) recorded++; });
+    await page.goto(base + '/contact.html');
+    await page.locator('#neover-audience-consent').waitFor();
+    assert.equal(recorded, 0);
+    await page.getByRole('button', { name: 'Refuser', exact: true }).click();
+    await page.goto(base + '/services.html');
+    await page.locator('#neover-audience-preferences').waitFor();
+    assert.equal(recorded, 0);
+    await page.locator('#neover-audience-preferences').click();
+    const firstEvent = page.waitForResponse(response => response.url().endsWith('/api/audience/event'));
+    await page.getByRole('button', { name: 'Accepter', exact: true }).click();
+    assert.equal((await firstEvent).status(), 204);
+    for (const route of ['/contact.html', '/']) {
+      const pending = page.waitForResponse(response => response.url().endsWith('/api/audience/event'));
+      await page.goto(base + route); await pending;
+    }
+    assert.equal(recorded, 3);
+    await page.goto(base + '/statistiques');
+    await page.waitForFunction(() => document.getElementById('views').textContent === '3');
+    assert.equal(await page.locator('#today').innerText(), '1');
+    assert.equal(await page.locator('#visits').innerText(), '1');
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+    fs.mkdirSync('preview-ui', { recursive: true });
+    await page.screenshot({ path: 'preview-ui/audience-mobile.png', fullPage: true });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.screenshot({ path: 'preview-ui/audience-desktop.png', fullPage: true });
+    await page.getByRole('tab', { name: 'Pages consult\u00e9es' }).click();
+    assert.equal(await page.locator('#pages tr').count(), 3);
+    const downloadPromise = page.waitForEvent('download');
+    await page.locator('#export').click();
+    const download = await downloadPromise;
+    assert.match(download.suggestedFilename(), /neover-pages.*\.csv$/);
+    await page.goto(base + '/contact.html');
+    await page.locator('#neover-audience-preferences').click();
+    await page.getByRole('button', { name: 'Refuser', exact: true }).click();
+    assert.equal(await page.evaluate(() => localStorage.getItem('neover-audience-visitor')), null);
+    const before = recorded;
+    await page.goto(base + '/services.html');
+    await page.locator('#neover-audience-preferences').waitFor();
+    assert.equal(recorded, before);
+    await page.goto(base + '/mentions-legales.html#audience');
+    await page.locator('#audience').waitFor();
+    assert.deepEqual(errors, []);
+    console.log('PASS: refusal records nothing; three pages count one visitor and one visit; dashboard mobile/desktop, CSV download, withdrawal and privacy notice.');
+  } finally {
+    if (browser) await browser.close();
+    await new Promise(resolve => { server.close(resolve); server.closeAllConnections(); });
+    analytics.close();
+    for (const file of [filename, filename + '-wal', filename + '-shm']) if (fs.existsSync(file)) fs.unlinkSync(file);
+  }
+})().catch(error => { console.error(error); process.exitCode = 1; });

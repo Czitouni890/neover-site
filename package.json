@@ -5,9 +5,9 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test test/contact.test.cjs",
+    "test": "node --test test/contact.test.cjs test/audience.test.cjs",
     "test:ui": "node test/contact-ui.cjs",
-    "check": "node --check server.js && node --check neover-export/assets/multipage.js"
+    "check": "node --check server.js && node --check analytics.js && node --check admin/admin.js && node --check neover-export/assets/audience.js && node --check neover-export/assets/multipage.js"
   },
   "engines": {
     "node": "22.x"

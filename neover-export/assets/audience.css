@@ -1,0 +1,8 @@
+#neover-audience-consent { position: fixed; z-index: 100; bottom: 0; left: 0; right: 0; display: flex; align-items: center; gap: 24px; padding: 20px max(20px, calc((100% - 1120px) / 2)); background: white; color: #253b30; border-top: 1px solid #c9d9cf; box-shadow: 0 -4px 18px #15251a12; font: 14px/1.65 Poppins, Arial, sans-serif; }
+#neover-audience-consent p { margin: 0; flex: 1; }
+#neover-audience-consent a { color: #075b4c; text-decoration: underline; }
+#neover-audience-consent > div { display: flex; gap: 12px; }
+#neover-audience-consent button { font: inherit; min-height: 44px; padding: 10px 18px; background: #edf5f0; color: #075b4c; border: 1px solid #a7c1b1; border-radius: 6px; cursor: pointer; }
+#neover-audience-preferences { display: block; margin: 24px auto 0; min-height: 44px; padding: 8px 16px; font: inherit; font-size: 13px; background: none; border: 0; color: #cad7d0; text-decoration: underline; cursor: pointer; }
+#audience { max-width: 896px; margin: 32px auto; padding: 24px; scroll-margin-top: 100px; }#audience h2 { font-size: 24px; margin-bottom: 16px; }#audience p { line-height: 1.8; }
+@media(max-width:650px) { #neover-audience-consent { display: block; padding: 16px; max-height: 60dvh; overflow: auto; }#neover-audience-consent > div { margin-top: 12px; }#neover-audience-consent button { flex: 1; } }

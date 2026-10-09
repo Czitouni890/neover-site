@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Audience - NEOVER</title>
+  <link rel="stylesheet" href="/admin-assets/admin.css">
+  <script src="/admin-assets/admin.js" defer></script>
+</head>
+<body>
+  <header><div class="header-inner"><a href="/" aria-label="NEOVER, retour au site"><img src="/images/logo-neover.png" alt="NEOVER" width="58" height="68"></a><span>Audience</span><a class="site-link" href="/">Voir le site</a></div></header>
+  <main>
+    <div class="heading"><div><h1>Fréquentation du site</h1><p>Visites mesurées avec le consentement des visiteurs.</p></div><span class="timezone">Europe/Paris</span></div>
+    <form id="period"><label>Du <input type="date" name="from" required></label><label>Au <input type="date" name="to" required></label><button type="submit">Afficher</button><a id="export" class="export" href="/api/audience/export" download>Exporter Excel (.csv)</a></form>
+    <p id="status" role="status" aria-live="polite">Chargement des statistiques...</p>
+    <div class="metrics"><div><span>Visiteurs aujourd'hui</span><strong id="today">—</strong><small>Uniques estimés</small></div><div><span>Visites sur la période</span><strong id="visits">—</strong><small>Sessions de navigation</small></div><div><span>Pages vues sur la période</span><strong id="views">—</strong><small>Consultations enregistrées</small></div></div>
+    <div class="tabs" role="tablist" aria-label="Statistiques"><button type="button" role="tab" aria-selected="true" aria-controls="daily-panel" id="daily-tab" data-view="daily">Par jour</button><button type="button" role="tab" aria-selected="false" aria-controls="pages-panel" id="pages-tab" data-view="pages" tabindex="-1">Pages consultées</button></div>
+    <section id="daily-panel" role="tabpanel" aria-labelledby="daily-tab"><div class="table-scroll"><table><thead><tr><th>Date</th><th>Visiteurs uniques estimés</th><th>Visites</th><th>Pages vues</th></tr></thead><tbody id="daily"></tbody></table></div></section>
+    <section id="pages-panel" role="tabpanel" aria-labelledby="pages-tab" hidden><div class="table-scroll"><table><thead><tr><th>Page</th><th>URL</th><th>Pages vues</th></tr></thead><tbody id="pages"></tbody></table></div></section>
+    <p class="note">Une visite se termine après 30 minutes d'inactivité. Un même navigateur compte une fois par jour parmi les visiteurs uniques estimés. Les refus de suivi et certains bloqueurs limitent le comptage. Historique disponible : 90 jours.</p>
+  </main>
+</body>
+</html>

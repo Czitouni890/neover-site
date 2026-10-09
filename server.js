@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const { randomUUID } = require('node:crypto');
 const { rateLimit } = require('express-rate-limit');
+const { createAnalytics } = require('./analytics');
 
 const app = express();
 const SITE_DIR = path.join(__dirname, 'neover-export');
@@ -19,6 +20,8 @@ const contactLimiter = rateLimit({
 app.use('/api/contact', contactLimiter);
 app.use(express.json({ limit: '25kb' }));
 app.use(express.urlencoded({ extended: false, limit: '25kb' }));
+const analytics = createAnalytics();
+app.use(analytics.router);
 
 app.get('/health', (_req, res) => {
   res.status(200).json({ status: 'ok' });
