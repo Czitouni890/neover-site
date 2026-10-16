@@ -80,24 +80,3 @@ Les donnees de test ne sont pas transferees vers le stockage de production.
 - Aucun chiffre retroactif avant activation du suivi.
 
 Tests : `npm test`, `npm run test:ui` et `node test/audience-ui.cjs` (Edge installe pour les tests d'interface).
-
-## Protections navigateur et antispam
-
-Les en-tetes de securite sont appliques par Helmet a toutes les reponses, y compris les erreurs.
-La politique CSP autorise les scripts locaux, les polices Google utilisees par le site et les workers locaux de l'antispam.
-Les scripts inline, les gestionnaires d'evenements HTML, les objets embarques et l'integration dans une iframe sont interdits.
-Les styles inline restent autorises pour le site compile et le widget. WebAssembly est autorise pour la bibliotheque antispam, sans autoriser l'evaluation de JavaScript.
-HSTS et la mise a niveau HTTPS ne sont actives que sur les requetes HTTPS, pour conserver l'apercu HTTP local.
-
-ALTCHA est heberge par NEOVER et ne necessite aucun compte, service tiers ou cle a configurer.
-Le navigateur resout un defi signe, expire apres 5 minutes et utilisable une seule fois.
-La verification est effectuee par le serveur avant tout transfert du message. Le jeton n'est pas transmis au prestataire email.
-Les donnees du formulaire restent remplies en cas d'echec de la verification ou de l'envoi.
-La limitation reste de 5 tentatives d'envoi par IP sur 15 minutes. Les defis ont un quota separe de 30 sur 15 minutes.
-Les requetes dont l'en-tete Origin ne correspond pas au site sont refusees; les clients API doivent donc egalement envoyer cet en-tete.
-`SITE_URL`, si defini, doit correspondre a l'origine exacte du site. L'apercu local utilise `http://localhost:3013`.
-
-La protection augmente le cout des envois automatises; elle ne garantit pas l'absence de spam.
-Le stockage anti-rejeu est atomique, borne a 10000 jetons et local au processus, comme les quotas IP.
-Les secrets sont renouveles au demarrage : un redemarrage invalide les defis en cours. L'utilisateur peut reessayer.
-Une execution sur plusieurs instances necessiterait des secrets et un stockage anti-rejeu partages.

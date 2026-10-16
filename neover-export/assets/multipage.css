@@ -113,7 +113,6 @@ body[data-page="contact"] #contact { padding: 56px 0 72px; }
 #contact form button[type="submit"]:disabled { cursor: wait; background: #476a5e; }
 .neover-form-status { line-height: 1.65; font-size: 14px; border: 1px solid transparent; border-left-width: 4px; overflow-wrap: anywhere; }
 .neover-form-status:empty { display: none; }
-#contact altcha-widget { display: block; max-width: 100%; --altcha-border-radius: 6px; }
 .neover-form-status-success { border-color: #9dd2b5; }
 .neover-form-status-error { border-color: #edb3b3; }
 .neover-form-status-pending { color: #334c40; background: #eaf0ed; border-color: #b9cbc0; }
