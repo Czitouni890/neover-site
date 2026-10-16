@@ -15,6 +15,10 @@ const app = require('../server');
     const dialogs = [];
     page.on('pageerror', error => errors.push(error.message));
     page.on('dialog', async dialog => { dialogs.push(dialog.message()); await dialog.dismiss(); });
+    await page.addInitScript(() => {
+      window.cspViolations = [];
+      document.addEventListener('securitypolicyviolation', event => window.cspViolations.push(event.violatedDirective + ': ' + event.blockedURI));
+    });
     for (const width of [320, 390, 768, 1024, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       for (const route of ['/', '/qui-sommes-nous.html', '/services.html', '/contact.html', '/mentions-legales.html']) {
@@ -23,11 +27,12 @@ const app = require('../server');
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `Overflow: ${route} at ${width}`);
         if (route === '/contact.html') {
           assert.equal(await page.locator('form').count(), 1);
-          assert.equal(await page.locator('label[for]').count(), 4);
+          assert.equal(await page.locator('#contact form > div label[for]').count(), 4);
           await page.screenshot({ path: `preview-ui/contact-${width}.png`, fullPage: true });
         }
         const broken = await page.locator('img:visible').evaluateAll(images => images.filter(img => img.complete && img.naturalWidth === 0).map(img => img.src));
         assert.deepEqual(broken, [], `Broken assets: ${route}`);
+        assert.deepEqual(await page.evaluate(() => window.cspViolations), [], `CSP: ${route}`);
         if (width === 390 && (route === '/' || route === '/services.html')) {
           await page.screenshot({ path: `preview-ui/${route === '/' ? 'home' : 'services'}-mobile.png`, fullPage: true });
         }
@@ -51,6 +56,7 @@ const app = require('../server');
     await page.waitForURL('**/services.html');
     await page.goto(base + '/contact.html');
     const form = page.locator('#contact form');
+    await page.waitForFunction(() => typeof document.querySelector('altcha-widget')?.verify === 'function');
     const submit = form.locator('button[type="submit"]');
     const fill = async () => {
       await page.getByLabel('Nom complet', { exact: true }).fill('Test UI');
@@ -69,7 +75,15 @@ const app = require('../server');
       await route.fulfill({ status: 502, json: { ok: false } });
     });
     await submit.click();
-    await waiting;
+    let waitTimer;
+    try {
+      await Promise.race([waiting, new Promise((_resolve, reject) => {
+        waitTimer = setTimeout(async () => {
+          const debug = await page.evaluate(() => ({ state: document.querySelector('altcha-widget')?.getState?.(), status: document.querySelector('.neover-form-status')?.textContent, csp: window.cspViolations }));
+          reject(new Error('No contact request: ' + JSON.stringify(debug)));
+        }, 20000);
+      })]);
+    } finally { clearTimeout(waitTimer); }
     assert.equal(await submit.isDisabled(), true);
     assert.equal(await form.getAttribute('aria-busy'), 'true');
     assert.match(await form.locator('.neover-form-status').innerText(), /en cours/);
@@ -78,18 +92,35 @@ const app = require('../server');
     assert.match(await form.locator('.neover-form-status').innerText(), /n'a pas abouti/);
     assert.equal(await page.getByLabel('Nom complet').inputValue(), 'Test UI');
     await page.screenshot({ path: 'preview-ui/contact-error.png', fullPage: true });
-    for (const status of [429, 400, 200]) {
+    for (const status of [429, 400, 403, 200]) {
       await page.unroute('**/api/contact');
-      await page.route('**/api/contact', route => route.fulfill({ status, json: { ok: status === 200 } }));
+      await page.route('**/api/contact', route => route.fulfill({ status, json: { ok: status === 200, code: status === 403 ? 'ANTISPAM_FAILED' : undefined } }));
       await submit.click();
       await page.waitForFunction(() => document.querySelector('form').getAttribute('aria-busy') === 'false');
       const text = await form.locator('.neover-form-status').innerText();
-      assert.match(text, status === 429 ? /15 minutes/ : status === 400 ? /informations/ : /envoy/);
+      assert.match(text, status === 429 ? /15 minutes/ : status === 400 ? /informations/ : status === 403 ? /expir/ : /envoy/);
     }
     await page.getByLabel('Nom complet').fill('Nouveau projet');
     assert.equal(await page.getByLabel('Email', { exact: true }).inputValue(), '');
     assert.equal(await page.getByLabel('Message', { exact: true }).inputValue(), '');
+    await page.unroute('**/api/contact');
+    const originalFetch = global.fetch;
+    let forwarded = 0;
+    global.fetch = async (url, options) => {
+      assert.equal(new URL(url).hostname, 'formsubmit.co');
+      assert.equal(Object.hasOwn(JSON.parse(options.body), 'altcha'), false);
+      forwarded++;
+      return Response.json({ success: 'true' });
+    };
+    try {
+      await fill();
+      await submit.click();
+      await page.waitForFunction(() => document.querySelector('form').getAttribute('aria-busy') === 'false');
+      assert.match(await form.locator('.neover-form-status').innerText(), /envoy/);
+      assert.equal(forwarded, 1, 'Browser proof must pass real server verification');
+    } finally { global.fetch = originalFetch; }
     assert.deepEqual(dialogs, [], 'Obsolete success alert must not fire');
+    assert.deepEqual(await page.evaluate(() => window.cspViolations), [], 'Antispam respects CSP');
     assert.deepEqual(errors, [], 'No browser errors');
     console.log('PASS: five pages at five widths; menu, assets, one form, pending/error/rate-limit/success states and React reset. No email sent.');
   } finally {

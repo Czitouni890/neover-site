@@ -7,14 +7,17 @@
     "start": "node server.js",
     "test": "node --test test/contact.test.cjs test/audience.test.cjs",
     "test:ui": "node test/contact-ui.cjs",
-    "check": "node --check server.js && node --check analytics.js && node --check admin/admin.js && node --check neover-export/assets/audience.js && node --check neover-export/assets/multipage.js"
+    "check": "node --check server.js && node --check security.js && node --check antispam.js && node --check analytics.js && node --check admin/admin.js && node --check neover-export/assets/audience.js && node --check neover-export/assets/multipage.js"
   },
   "engines": {
     "node": "22.x"
   },
   "dependencies": {
+    "altcha": "^3.4.0",
+    "altcha-lib": "^2.6.0",
     "express": "^4.21.2",
-    "express-rate-limit": "^8.7.1"
+    "express-rate-limit": "^8.7.1",
+    "helmet": "^8.3.0"
   },
   "devDependencies": {
     "playwright": "^1.64.0"

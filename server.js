@@ -3,6 +3,8 @@ const path = require('path');
 const { randomUUID } = require('node:crypto');
 const { rateLimit } = require('express-rate-limit');
 const { createAnalytics } = require('./analytics');
+const { securityHeaders } = require('./security');
+const { createAntispam } = require('./antispam');
 
 const app = express();
 const SITE_DIR = path.join(__dirname, 'neover-export');
@@ -10,6 +12,8 @@ const SITE_DIR = path.join(__dirname, 'neover-export');
 app.disable('x-powered-by');
 // Render forwards public requests through its reverse proxy.
 app.set('trust proxy', process.env.RENDER === 'true' ? 1 : false);
+app.use(securityHeaders);
+const antispam = createAntispam();
 const contactLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 5,
@@ -17,7 +21,7 @@ const contactLimiter = rateLimit({
   legacyHeaders: false,
   message: { ok: false, code: 'RATE_LIMITED' }
 });
-app.use('/api/contact', contactLimiter);
+app.post('/api/contact', contactLimiter);
 app.use(express.json({ limit: '25kb' }));
 app.use(express.urlencoded({ extended: false, limit: '25kb' }));
 const analytics = createAnalytics();
@@ -25,6 +29,12 @@ app.use(analytics.router);
 
 app.get('/health', (_req, res) => {
   res.status(200).json({ status: 'ok' });
+});
+
+const challengeLimiter = rateLimit({ windowMs: 15 * 60000, limit: 30, standardHeaders: 'draft-8', legacyHeaders: false });
+app.get('/api/contact/challenge', challengeLimiter, antispam.challengeHandler);
+app.get('/assets/altcha.js', (_req, res) => {
+  res.type('application/javascript').sendFile(path.join(path.dirname(require.resolve('altcha')), 'altcha.i18n.min.js'));
 });
 
 function normalizeField(value, maxLength) {
@@ -54,12 +64,17 @@ function formatWebhookPayload(lead) {
     createdAt: lead.createdAt
   };
 }
-app.post('/api/contact', async (req, res) => {
+app.post('/api/contact', (req, res, next) => {
+  const expected = process.env.SITE_URL || `${req.protocol}://${req.get('host')}`;
+  try {
+    if (req.get('origin') !== new URL(expected).origin) return res.status(403).json({ ok: false, code: 'ORIGIN_REJECTED' });
+  } catch (_error) { return res.status(403).json({ ok: false, code: 'ORIGIN_REJECTED' }); }
+  if (req.body?.website) return res.status(200).json({ ok: true });
+  if (typeof req.body?.altcha !== 'string' || req.body.altcha.length > 8000) return res.status(403).json({ ok: false, code: 'ANTISPAM_FAILED' });
+  next();
+}, antispam.middleware({ throwOnFailure: false }), async (req, res) => {
   const body = req.body || {};
-
-  if (body.website) {
-    return res.status(200).json({ ok: true });
-  }
+  if (!res.locals.altcha?.verification?.verified || res.locals.altcha.error) return res.status(403).json({ ok: false, code: 'ANTISPAM_FAILED' });
 
   const lead = {
     name: normalizeField(body.name, 80),
@@ -120,6 +135,11 @@ app.use(express.static(SITE_DIR, {
 
 app.get('*', (_req, res) => {
   res.sendFile(path.join(SITE_DIR, 'index.html'));
+});
+
+app.use((error, _req, res, _next) => {
+  const status = error.type === 'entity.too.large' ? 413 : error.type === 'entity.parse.failed' ? 400 : 500;
+  res.status(status).json({ ok: false, code: status < 500 ? 'INVALID_REQUEST' : 'SERVER_ERROR' });
 });
 
 const PORT = process.env.PORT || 3000;
