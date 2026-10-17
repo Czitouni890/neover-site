@@ -30,7 +30,8 @@ const app = require('../server');
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `Overflow: ${route} at ${width}`);
         if (route === '/contact.html') {
           assert.equal(await page.locator('form').count(), 1);
-          assert.equal(await page.locator('label[for]').count(), 4);
+          assert.equal(await page.locator('label[for]').evaluateAll(labels =>
+            labels.filter(label => !label.closest('altcha-widget')).length), 4);
           await page.screenshot({ path: `preview-ui/contact-${width}.png`, fullPage: true });
         }
         const broken = await page.locator('img:visible').evaluateAll(images => images.filter(img => img.complete && img.naturalWidth === 0).map(img => img.src));
@@ -66,6 +67,7 @@ const app = require('../server');
       await page.getByLabel('Message', { exact: true }).fill('Un projet de test sans envoi de mail.');
     };
     await fill();
+    await page.waitForFunction(() => window.neoverAntispamReady === true);
     let release;
     let arrived;
     const waiting = new Promise(resolve => { arrived = resolve; });

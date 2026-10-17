@@ -80,3 +80,19 @@ Les donnees de test ne sont pas transferees vers le stockage de production.
 - Aucun chiffre retroactif avant activation du suivi.
 
 Tests : `npm test`, `npm run test:ui` et `node test/audience-ui.cjs` (Edge installe pour les tests d'interface).
+
+## Antispam du formulaire
+
+- ALTCHA est auto-heberge : widget, traduction francaise et worker SHA-256 servis par NEOVER, sans CDN ni compte externe.
+- La verification demarre a l'envoi. Aucune preuve n'est envoyee au prestataire email.
+- Le serveur exige une preuve signee, valable cinq minutes et utilisable une seule fois.
+- Limites distinctes : 5 envois de formulaire et 30 demandes de verification par IP sur 15 minutes.
+- Les champs restent remplis si la verification ou le prestataire d'envoi echoue. Une nouvelle tentative genere une nouvelle preuve.
+- Le registre antirejeu reste en memoire, limite a 10 000 preuves. Il refuse les nouvelles preuves s'il est plein, sans effacer celles encore valides.
+- Les secrets sont generes au demarrage. Un redemarrage invalide les anciennes preuves et leur registre ensemble ; le visiteur peut reessayer.
+- Cette configuration vise une seule instance Render. Avant une mise a l'echelle multi-instance, prevoir des secrets partages et un registre antirejeu atomique partage.
+- La politique CSP conserve les scripts locaux uniquement, sans `unsafe-eval`, WebAssembly ni workers `blob:`.
+- Aucun reglage DNS ou secret supplementaire n'est necessaire. Ce controle complete les limites existantes, sans garantir le blocage de tous les robots.
+
+Tests : `npm test`, `npm run test:ui`, `npm run test:antispam`.
+Le dernier teste des preuves reelles navigateur/serveur avec un prestataire email simule, sans email reel.

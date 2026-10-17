@@ -12,6 +12,7 @@ function policy(https) {
         fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
         imgSrc: ["'self'", 'data:'],
         connectSrc: ["'self'"],
+        workerSrc: ["'self'"],
         objectSrc: ["'none'"],
         baseUri: ["'none'"],
         frameAncestors: ["'none'"],

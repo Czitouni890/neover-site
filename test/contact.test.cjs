@@ -4,6 +4,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const { createRequire } = require('node:module');
+const { solveChallenge } = require('altcha-lib');
+const { deriveKey } = require('altcha-lib/algorithms/sha');
+const { createReplayStore } = require('../antispam');
 
 const serverPath = path.resolve(__dirname, '../server.js');
 const source = fs.readFileSync(serverPath, 'utf8');
@@ -32,11 +35,24 @@ async function setup(t, send, render = false) {
     server.close(resolve);
     server.closeAllConnections();
   }));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  async function proof() {
+    const response = await fetch(base + '/api/contact/challenge');
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    const challenge = await response.json();
+    const solution = await solveChallenge({ challenge, deriveKey });
+    assert.ok(solution);
+    return Buffer.from(JSON.stringify({ challenge, solution })).toString('base64');
+  }
   return {
-    logs, calls: () => calls,
-    post: (body = lead, headers = {}) => fetch(`http://127.0.0.1:${server.address().port}/api/contact`, {
-      method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body)
-    })
+    logs, base, proof, calls: () => calls,
+    post: async (body = lead, headers = {}) => {
+      const payload = Object.hasOwn(body, 'altcha') || body.website ? body : { ...body, altcha: await proof() };
+      return fetch(base + '/api/contact', {
+        method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(payload)
+      });
+    }
   };
 }
 
@@ -46,6 +62,96 @@ function assertPrivate(logs) {
     assert.equal(text.includes(value), false);
   }
 }
+
+test('missing, forged and reused proofs never reach the email service', async t => {
+  const ctx = await setup(t, () => Response.json({ success: true }));
+  for (const altcha of ['', 'forged', 'x'.repeat(8001)]) {
+    const response = await ctx.post({ ...lead, altcha });
+    assert.equal(response.status, 403);
+    assert.equal((await response.json()).code, 'ANTISPAM_FAILED');
+  }
+  const altcha = await ctx.proof();
+  assert.equal((await ctx.post({ ...lead, altcha })).status, 200);
+  assert.equal((await ctx.post({ ...lead, altcha })).status, 403);
+  assert.equal(ctx.calls(), 1);
+  assertPrivate(ctx.logs);
+});
+
+test('concurrent reuse permits only one delivery', async t => {
+  const ctx = await setup(t, () => Response.json({ success: true }));
+  const altcha = await ctx.proof();
+  const responses = await Promise.all([ctx.post({ ...lead, altcha }), ctx.post({ ...lead, altcha })]);
+  assert.deepEqual(responses.map(r => r.status).sort(), [200, 403]);
+  assert.equal(ctx.calls(), 1);
+});
+
+test('signed challenges expire in five minutes and cannot be modified', async t => {
+  const ctx = await setup(t, () => { throw new Error('Unexpected delivery'); });
+  const payload = JSON.parse(Buffer.from(await ctx.proof(), 'base64').toString());
+  const remaining = payload.challenge.parameters.expiresAt - Date.now() / 1000;
+  assert.ok(remaining > 0 && remaining <= 300);
+  payload.challenge.parameters.expiresAt = Math.floor(Date.now() / 1000) - 10;
+  const altcha = Buffer.from(JSON.stringify(payload)).toString('base64');
+  assert.equal((await ctx.post({ ...lead, altcha })).status, 403);
+  assert.equal(ctx.calls(), 0);
+});
+
+test('replay storage is atomic, bounded and never evicts live proofs', () => {
+  let now = 0;
+  const store = createReplayStore({ now: () => now, maxSize: 2 });
+  assert.equal(store.setIfAbsent('one'), true);
+  assert.equal(store.setIfAbsent('one'), false);
+  assert.equal(store.setIfAbsent('two'), true);
+  assert.equal(store.setIfAbsent('three'), false);
+  assert.equal(store.setIfAbsent('one'), false);
+  now += 300001;
+  assert.equal(store.setIfAbsent('three'), true);
+});
+
+test('a genuinely expired proof is rejected even with a valid signature', async t => {
+  const ctx = await setup(t, () => { throw new Error('Unexpected delivery'); });
+  const altcha = await ctx.proof();
+  const future = Date.now() + 6 * 60000;
+  t.mock.method(Date, 'now', () => future);
+  try {
+    assert.equal((await ctx.post({ ...lead, altcha })).status, 403);
+    assert.equal(ctx.calls(), 0);
+  } finally {
+    t.mock.restoreAll();
+  }
+});
+
+test('a restart invalidates proofs along with the old replay registry', async t => {
+  const first = await setup(t, () => { throw new Error('Unexpected delivery'); });
+  const second = await setup(t, () => { throw new Error('Unexpected delivery'); });
+  assert.equal((await second.post({ ...lead, altcha: await first.proof() })).status, 403);
+  assert.equal(second.calls(), 0);
+});
+
+test('malformed requests never echo personal data or log parser errors', async t => {
+  const ctx = await setup(t, () => { throw new Error('Unexpected delivery'); });
+  for (const [body, status] of [
+    ['{"private@example.com":', 400],
+    [JSON.stringify({ message: 'x'.repeat(26000) }), 413]
+  ]) {
+    const response = await fetch(ctx.base + '/api/contact', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body
+    });
+    assert.equal(response.status, status);
+    assert.deepEqual(await response.json(), { ok: false, code: 'INVALID_REQUEST' });
+  }
+  assert.deepEqual(ctx.logs, []);
+});
+
+test('challenge requests have a separate rate limit and do not consume form attempts', async t => {
+  const ctx = await setup(t, () => Response.json({ success: true }));
+  const altcha = await ctx.proof();
+  for (let i = 1; i < 30; i++) {
+    assert.equal((await fetch(ctx.base + '/api/contact/challenge')).status, 200);
+  }
+  assert.equal((await fetch(ctx.base + '/api/contact/challenge')).status, 429);
+  assert.equal((await ctx.post({ ...lead, altcha })).status, 200);
+});
 
 test('success requires provider acceptance and logs no personal data', async t => {
   const ctx = await setup(t, () => Response.json({ success: 'true' }));

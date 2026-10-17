@@ -280,6 +280,14 @@
     const submitButton = form.querySelector("button[type='submit'], input[type='submit']");
     const originalButtonText = submitButton?.tagName === "INPUT" ? submitButton.value : submitButton?.textContent;
 
+    const verification = document.createElement("altcha-widget");
+    verification.setAttribute("challenge", "/api/contact/challenge");
+    verification.setAttribute("language", "fr-fr");
+    verification.setAttribute("auto", "off");
+    verification.setAttribute("display", "invisible");
+    verification.setAttribute("workers", "1");
+    form.insertBefore(verification, submitButton);
+
     polishContact(section, form);
     form.dataset.neoverContactReady = "true";
     form.addEventListener("submit", async (event) => {
@@ -290,11 +298,6 @@
       form.setAttribute("aria-busy", "true");
       showFormStatus(form, "pending", "Envoi de votre demande en cours...");
 
-      const formData = new FormData(form);
-      const payload = Object.fromEntries(formData.entries());
-      payload.consent = formData.get("consent") !== "false";
-      payload.project = payload.project || "Demande de contact";
-
       if (submitButton) {
         submitButton.disabled = true;
         if (submitButton.tagName === "INPUT") submitButton.value = "Envoi en cours...";
@@ -302,6 +305,22 @@
       }
 
       try {
+        if (!window.neoverAntispamReady || typeof verification.verify !== "function") {
+          showFormStatus(form, "error", "La v\u00e9rification de s\u00e9curit\u00e9 se charge. Merci de r\u00e9essayer dans quelques instants.");
+          return;
+        }
+        showFormStatus(form, "pending", "V\u00e9rification de s\u00e9curit\u00e9 en cours...");
+        const proof = await verification.verify({ timeout: 20000 });
+        if (!proof?.payload) {
+          showFormStatus(form, "error", "La v\u00e9rification de s\u00e9curit\u00e9 a \u00e9chou\u00e9. Merci de r\u00e9essayer ou d'appeler le 09 72 73 03 95.");
+          return;
+        }
+        const formData = new FormData(form);
+        const payload = Object.fromEntries(formData.entries());
+        payload.consent = formData.get("consent") !== "false";
+        payload.project = payload.project || "Demande de contact";
+        payload.altcha = proof.payload;
+        showFormStatus(form, "pending", "Envoi de votre demande en cours...");
         const response = await fetch("/api/contact", {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -312,6 +331,8 @@
         if (!response.ok || !result.ok) {
           const message = response.status === 429
             ? "Trop de tentatives. Merci de patienter 15 minutes avant de r\u00e9essayer."
+            : result.code === "ANTISPAM_FAILED"
+              ? "La v\u00e9rification de s\u00e9curit\u00e9 a expir\u00e9. Merci de r\u00e9essayer."
             : response.status === 400
               ? "Merci de v\u00e9rifier les informations du formulaire avant l'envoi."
               : "L'envoi n'a pas abouti. Merci de r\u00e9essayer plus tard ou d'appeler NEOVER au 09 72 73 03 95.";
@@ -329,6 +350,7 @@
       } catch (_error) {
         showFormStatus(form, "error", "L'envoi n'a pas abouti. Vous pouvez aussi appeler NEOVER au 09 72 73 03 95.");
       } finally {
+        verification.reset?.();
         form.setAttribute("aria-busy", "false");
         if (submitButton) {
           submitButton.disabled = false;
