@@ -1,0 +1,39 @@
+name: Site Availability
+
+on:
+  schedule:
+    - cron: "7,22,37,52 * * * *"
+  workflow_dispatch:
+    inputs:
+      notification_test:
+        description: "Creer puis fermer une notification EXERCICE, sans panne reelle"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: neover-production-availability
+  cancel-in-progress: false
+
+jobs:
+  availability:
+    name: Check Production Availability
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.x
+      - name: Check site and maintain a single incident
+        run: node scripts/check-uptime.cjs --notify
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          UPTIME_NOTIFICATION_TEST: ${{ inputs.notification_test }}

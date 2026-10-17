@@ -133,3 +133,8 @@ Aucun mot de passe Gmail n'est necessaire. Ne jamais activer de journalisation c
 Voir `DEPENDANCES_SECURITE.md` : alertes Dependabot, audit quotidien, tests de chaque proposition et validation manuelle avant fusion.
 Le Blueprint demande maintenant un deploiement apres succes des controles et un build `npm ci && npm run security:check`.
 Si ce service existant n'est pas gere par un Blueprint synchronise, confirmer ces deux reglages dans Render ; modifier le YAML seul ne les applique pas.
+
+## Surveillance et retour arriere
+
+Voir `SURVEILLANCE_RESTAURATION.md` : controle HTTP programme, incident GitHub affecte au proprietaire, notifications a activer dans ses preferences et procedure Render/GitHub.
+Le controle ne soumet aucun formulaire et ne remplace pas la verification de livraison des emails. Aucun rollback automatique ni restauration des donnees n'est configure.
