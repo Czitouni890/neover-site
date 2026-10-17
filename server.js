@@ -3,6 +3,7 @@ const path = require('path');
 const { randomUUID } = require('node:crypto');
 const { rateLimit } = require('express-rate-limit');
 const { createAnalytics } = require('./analytics');
+const { securityHeaders, contactOriginGuard } = require('./security');
 
 const app = express();
 const SITE_DIR = path.join(__dirname, 'neover-export');
@@ -10,6 +11,7 @@ const SITE_DIR = path.join(__dirname, 'neover-export');
 app.disable('x-powered-by');
 // Render forwards public requests through its reverse proxy.
 app.set('trust proxy', process.env.RENDER === 'true' ? 1 : false);
+app.use(securityHeaders);
 const contactLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 5,
@@ -17,7 +19,7 @@ const contactLimiter = rateLimit({
   legacyHeaders: false,
   message: { ok: false, code: 'RATE_LIMITED' }
 });
-app.use('/api/contact', contactLimiter);
+app.use('/api/contact', contactOriginGuard, contactLimiter);
 app.use(express.json({ limit: '25kb' }));
 app.use(express.urlencoded({ extended: false, limit: '25kb' }));
 const analytics = createAnalytics();

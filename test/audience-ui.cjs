@@ -6,6 +6,7 @@ const os = require('node:os');
 const { randomUUID } = require('node:crypto');
 const assert = require('node:assert/strict');
 const { createAnalytics, sqliteStore } = require('../analytics');
+const { securityHeaders } = require('../security');
 
 (async () => {
   const filename = path.join(os.tmpdir(), `neover-ui-${randomUUID()}.sqlite`);
@@ -14,6 +15,7 @@ const { createAnalytics, sqliteStore } = require('../analytics');
   const env = { ANALYTICS_ADMIN_PASSWORD: password, ANALYTICS_HASH_SECRET: 'ui-test-hashing-secret-not-for-production' };
   const analytics = createAnalytics({ env, store });
   const app = express();
+  app.use(securityHeaders);
   app.use(express.json()); app.use(analytics.router);
   app.use(express.static(path.join(__dirname, '../neover-export')));
   const server = app.listen(0, '127.0.0.1');
@@ -25,6 +27,9 @@ const { createAnalytics, sqliteStore } = require('../analytics');
     const context = await browser.newContext({ viewport: { width: 390, height: 844 }, httpCredentials: { username: 'admin', password } });
     const page = await context.newPage();
     const errors = [];
+    page.on('console', message => {
+      if (/violates.*Content Security Policy/i.test(message.text())) errors.push(message.text());
+    });
     page.on('pageerror', error => errors.push(error.message));
     let recorded = 0;
     page.on('response', response => { if (response.url().endsWith('/api/audience/event') && response.status() === 204) recorded++; });

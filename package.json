@@ -5,7 +5,7 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test test/contact.test.cjs test/audience.test.cjs",
+    "test": "node --test test/contact.test.cjs test/audience.test.cjs test/security.test.cjs",
     "test:ui": "node test/contact-ui.cjs",
     "test:images": "node test/images-ui.cjs",
     "images:optimize": "node scripts/optimize-images.cjs",
@@ -16,7 +16,8 @@
   },
   "dependencies": {
     "express": "^4.21.2",
-    "express-rate-limit": "^8.7.1"
+    "express-rate-limit": "^8.7.1",
+    "helmet": "^8.3.0"
   },
   "devDependencies": {
     "acorn": "^8.19.0",

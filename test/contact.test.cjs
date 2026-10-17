@@ -56,6 +56,21 @@ test('success requires provider acceptance and logs no personal data', async t =
   assertPrivate(ctx.logs);
 });
 
+test('cross-site browser submissions are rejected before forwarding', async t => {
+  const ctx = await setup(t, () => Response.json({ success: true }));
+  for (const headers of [
+    { origin: 'https://untrusted.example' },
+    { origin: 'null' },
+    { 'sec-fetch-site': 'cross-site' }
+  ]) {
+    const response = await ctx.post(lead, headers);
+    assert.equal(response.status, 403);
+    assert.deepEqual(await response.json(), { ok: false, code: 'ORIGIN_REJECTED' });
+  }
+  assert.equal(ctx.calls(), 0);
+  assertPrivate(ctx.logs);
+});
+
 test('provider failures never report success or log raw provider data', async t => {
   for (const send of [
     () => new Response(lead.email, { status: 500 }),

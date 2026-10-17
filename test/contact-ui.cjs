@@ -12,6 +12,13 @@ const app = require('../server');
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
     const errors = [];
+    const violations = [];
+    await page.exposeFunction('recordSecurityViolation', value => violations.push(value));
+    await page.addInitScript(() => {
+      document.addEventListener('securitypolicyviolation', event => {
+        window.recordSecurityViolation(`${event.effectiveDirective}: ${event.blockedURI}`);
+      });
+    });
     const dialogs = [];
     page.on('pageerror', error => errors.push(error.message));
     page.on('dialog', async dialog => { dialogs.push(dialog.message()); await dialog.dismiss(); });
@@ -91,6 +98,7 @@ const app = require('../server');
     assert.equal(await page.getByLabel('Message', { exact: true }).inputValue(), '');
     assert.deepEqual(dialogs, [], 'Obsolete success alert must not fire');
     assert.deepEqual(errors, [], 'No browser errors');
+    assert.deepEqual(violations, [], 'Security policy must not break the existing site');
     console.log('PASS: five pages at five widths; menu, assets, one form, pending/error/rate-limit/success states and React reset. No email sent.');
   } finally {
     await browser.close();
