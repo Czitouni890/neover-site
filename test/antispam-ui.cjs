@@ -15,7 +15,7 @@ const { createRequire } = require('node:module');
     console: { info() {}, error() {} },
     fetch: async () => {
       deliveries++;
-      return Response.json({ success: !failDelivery }, { status: failDelivery ? 503 : 200 });
+      return Response.json({ ok: !failDelivery }, { status: failDelivery ? 503 : 200 });
     }
   };
   vm.runInNewContext(fs.readFileSync(filename, 'utf8'), sandbox, { filename });

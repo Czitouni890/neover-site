@@ -56,19 +56,17 @@ function isValidEmail(value) {
 }
 
 function getContactWebhookUrl() {
-  return process.env.CONTACT_WEBHOOK_URL || 'https://formsubmit.co/ajax/contact.neover@gmail.com';
+  return process.env.CONTACT_WEBHOOK_URL || 'https://formspree.io/f/xbgdwbvw';
 }
 
 const CONTACT_FORM_URL = 'https://neover.fr/contact.html';
 
-function formatWebhookPayload(lead) {
+function formatWebhookPayload(lead, isFormSubmit) {
   return {
-    _subject: `Nouvelle demande NEOVER - ${lead.project}`,
-    _template: 'table',
-    _captcha: 'false',
-    // Server-to-server requests have no browser referrer; FormSubmit requires this URL.
-    _url: CONTACT_FORM_URL,
-    _replyto: lead.email,
+    ...(isFormSubmit ? {
+      _subject: `Nouvelle demande NEOVER - ${lead.project}`,
+      _template: 'table', _captcha: 'false', _url: CONTACT_FORM_URL, _replyto: lead.email
+    } : { subject: `Nouvelle demande NEOVER - ${lead.project}` }),
     name: lead.name,
     phone: lead.phone,
     email: lead.email,
@@ -118,20 +116,22 @@ app.post('/api/contact', (req, res, next) => {
   try {
     const webhookUrl = new URL(getContactWebhookUrl());
     const isFormSubmit = webhookUrl.hostname === 'formsubmit.co';
+    const isFormspree = webhookUrl.hostname === 'formspree.io';
     const response = await fetch(webhookUrl.href, {
       method: 'POST',
       headers: {
         accept: 'application/json',
         'content-type': 'application/json',
-        ...(isFormSubmit ? { origin: new URL(CONTACT_FORM_URL).origin, referer: CONTACT_FORM_URL } : {})
+        ...(isFormSubmit || isFormspree ? { origin: new URL(CONTACT_FORM_URL).origin, referer: CONTACT_FORM_URL } : {})
       },
-      body: JSON.stringify(formatWebhookPayload(lead)),
+      body: JSON.stringify(formatWebhookPayload(lead, isFormSubmit)),
       signal: AbortSignal.timeout(5000)
     });
 
     const result = await response.json().catch(() => null);
     if (!response.ok || result?.success === false || result?.success === 'false' ||
-        result?.ok === false || (isFormSubmit && result?.success !== true && result?.success !== 'true')) {
+        result?.ok === false || (isFormspree && result?.ok !== true) ||
+        (isFormSubmit && result?.success !== true && result?.success !== 'true')) {
       const reason = isFormSubmit && /needs activation/i.test(String(result?.message || ''))
         ? 'activation_required' : 'provider_rejected';
       console.error('NEOVER_CONTACT_FAILED', JSON.stringify({ requestId, status: response.status, reason }));

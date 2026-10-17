@@ -15,13 +15,13 @@ const lead = {
   project: 'Projet confidentiel', message: 'Message strictement confidentiel', consent: true
 };
 
-async function setup(t, send, render = false) {
+async function setup(t, send, render = false, webhook = 'https://formsubmit.co/ajax/contact.neover@gmail.com') {
   const logs = [];
   let calls = 0;
   const sandbox = {
     require: createRequire(serverPath), module: { exports: {} },
     __dirname: path.dirname(serverPath), URL, AbortSignal,
-    process: { env: { RENDER: render ? 'true' : undefined } },
+    process: { env: { RENDER: render ? 'true' : undefined, CONTACT_WEBHOOK_URL: webhook } },
     console: {
       info: (...args) => logs.push(args.join(' ')),
       error: (...args) => logs.push(args.join(' '))
@@ -62,6 +62,40 @@ function assertPrivate(logs) {
     assert.equal(text.includes(value), false);
   }
 }
+
+test('Formspree is the default and receives contact fields but no legacy provider options or antispam proof', async t => {
+  const ctx = await setup(t, (url, options) => {
+    assert.equal(url, 'https://formspree.io/f/xbgdwbvw');
+    const payload = JSON.parse(options.body);
+    assert.equal(payload.email, lead.email);
+    assert.equal(payload.message, lead.message);
+    assert.equal(payload.subject, `Nouvelle demande NEOVER - ${lead.project}`);
+    assert.equal(options.headers.origin, 'https://neover.fr');
+    for (const key of ['altcha', '_captcha', '_url', '_template', '_replyto']) {
+      assert.equal(Object.hasOwn(payload, key), false);
+    }
+    return Response.json({ ok: true });
+  }, false, '');
+  assert.equal((await ctx.post()).status, 200);
+  assertPrivate(ctx.logs);
+});
+
+test('Formspree must explicitly accept a submission before reporting success', async t => {
+  for (const send of [
+    () => Response.json({}),
+    () => Response.json({ ok: false, errors: [{ message: lead.email }] }),
+    () => new Response('not-json', { status: 200 }),
+    () => Response.json({ ok: true }, { status: 403 })
+  ]) {
+    await t.test('ambiguous or rejected response', async t => {
+      const ctx = await setup(t, send, false, '');
+      const response = await ctx.post();
+      assert.equal(response.status, 502);
+      assert.deepEqual(await response.json(), { ok: false, code: 'DELIVERY_FAILED' });
+      assertPrivate(ctx.logs);
+    });
+  }
+});
 
 test('missing, forged and reused proofs never reach the email service', async t => {
   const ctx = await setup(t, () => Response.json({ success: true }));

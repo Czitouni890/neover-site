@@ -10,3 +10,5 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: CONTACT_WEBHOOK_URL
+        value: https://formspree.io/f/xbgdwbvw
