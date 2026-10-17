@@ -23,7 +23,7 @@ const { createRequire } = require('node:module');
   await new Promise(resolve => server.once('listening', resolve));
   let browser;
   try {
-    browser = await chromium.launch({ channel: 'msedge', headless: true });
+    browser = await chromium.launch({ channel: process.env.PLAYWRIGHT_CHANNEL || 'msedge', headless: true });
     for (const width of [390, 1440]) {
       const page = await browser.newPage({ viewport: { width, height: 900 } });
       const violations = [];

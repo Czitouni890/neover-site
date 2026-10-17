@@ -111,3 +111,9 @@ Tests : `npm test`, `npm run test:ui` et `node test/audience-ui.cjs` (Edge insta
 
 Tests : `npm test`, `npm run test:ui`, `npm run test:antispam`.
 Le dernier teste des preuves reelles navigateur/serveur avec un prestataire email simule, sans email reel.
+
+## Surveillance des dependances
+
+Voir `DEPENDANCES_SECURITE.md` : alertes Dependabot, audit quotidien, tests de chaque proposition et validation manuelle avant fusion.
+Le Blueprint demande maintenant un deploiement apres succes des controles et un build `npm ci && npm run security:check`.
+Si ce service existant n'est pas gere par un Blueprint synchronise, confirmer ces deux reglages dans Render ; modifier le YAML seul ne les applique pas.
