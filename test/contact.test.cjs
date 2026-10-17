@@ -162,6 +162,35 @@ test('success requires provider acceptance and logs no personal data', async t =
   assertPrivate(ctx.logs);
 });
 
+test('server-to-server delivery supplies the canonical form URL required by FormSubmit', async t => {
+  const ctx = await setup(t, (url, options) => {
+    assert.equal(url, 'https://formsubmit.co/ajax/contact.neover@gmail.com');
+    const payload = JSON.parse(options.body);
+    assert.equal(payload._url, 'https://neover.fr/contact.html');
+    assert.equal(options.headers.origin, 'https://neover.fr');
+    assert.equal(options.headers.referer, 'https://neover.fr/contact.html');
+    assert.equal(payload._replyto, lead.email);
+    assert.equal(payload.message, lead.message);
+    assert.equal(Object.hasOwn(payload, 'altcha'), false);
+    return Response.json({ success: 'true' });
+  });
+  const response = await ctx.post({ ...lead, page: 'https://untrusted.example/' });
+  assert.equal(response.status, 200);
+  assert.equal(ctx.calls(), 1);
+  assertPrivate(ctx.logs);
+});
+
+test('provider activation requests never report email delivery or erase a draft', async t => {
+  const ctx = await setup(t, () => Response.json({
+    success: 'false', message: "This form needs Activation. We've sent you an email."
+  }));
+  const response = await ctx.post();
+  assert.equal(response.status, 502);
+  assert.deepEqual(await response.json(), { ok: false, code: 'DELIVERY_FAILED' });
+  assert.match(ctx.logs.join(' '), /activation_required/);
+  assertPrivate(ctx.logs);
+});
+
 test('cross-site browser submissions are rejected before forwarding', async t => {
   const ctx = await setup(t, () => Response.json({ success: true }));
   for (const headers of [
