@@ -59,11 +59,15 @@ function getContactWebhookUrl() {
   return process.env.CONTACT_WEBHOOK_URL || 'https://formsubmit.co/ajax/contact.neover@gmail.com';
 }
 
+const CONTACT_FORM_URL = 'https://neover.fr/contact.html';
+
 function formatWebhookPayload(lead) {
   return {
     _subject: `Nouvelle demande NEOVER - ${lead.project}`,
     _template: 'table',
     _captcha: 'false',
+    // Server-to-server requests have no browser referrer; FormSubmit requires this URL.
+    _url: CONTACT_FORM_URL,
     _replyto: lead.email,
     name: lead.name,
     phone: lead.phone,
@@ -112,21 +116,25 @@ app.post('/api/contact', (req, res, next) => {
   const requestId = randomUUID();
 
   try {
-    const response = await fetch(getContactWebhookUrl(), {
+    const webhookUrl = new URL(getContactWebhookUrl());
+    const isFormSubmit = webhookUrl.hostname === 'formsubmit.co';
+    const response = await fetch(webhookUrl.href, {
       method: 'POST',
       headers: {
         accept: 'application/json',
-        'content-type': 'application/json'
+        'content-type': 'application/json',
+        ...(isFormSubmit ? { origin: new URL(CONTACT_FORM_URL).origin, referer: CONTACT_FORM_URL } : {})
       },
       body: JSON.stringify(formatWebhookPayload(lead)),
       signal: AbortSignal.timeout(5000)
     });
 
     const result = await response.json().catch(() => null);
-    const isFormSubmit = new URL(getContactWebhookUrl()).hostname === 'formsubmit.co';
     if (!response.ok || result?.success === false || result?.success === 'false' ||
         result?.ok === false || (isFormSubmit && result?.success !== true && result?.success !== 'true')) {
-      console.error('NEOVER_CONTACT_FAILED', JSON.stringify({ requestId, status: response.status }));
+      const reason = isFormSubmit && /needs activation/i.test(String(result?.message || ''))
+        ? 'activation_required' : 'provider_rejected';
+      console.error('NEOVER_CONTACT_FAILED', JSON.stringify({ requestId, status: response.status, reason }));
       return res.status(502).json({ ok: false, code: 'DELIVERY_FAILED' });
     }
   } catch (_error) {

@@ -112,6 +112,17 @@ Tests : `npm test`, `npm run test:ui` et `node test/audience-ui.cjs` (Edge insta
 Tests : `npm test`, `npm run test:ui`, `npm run test:antispam`.
 Le dernier teste des preuves reelles navigateur/serveur avec un prestataire email simule, sans email reel.
 
+## Reception des demandes de contact
+
+Sans `CONTACT_WEBHOOK_URL`, le serveur utilise `https://formsubmit.co/ajax/contact.neover@gmail.com`.
+Le champ `_url` et les en-tetes `Origin` / `Referer` transmettent explicitement l'origine officielle de la page contact pour FormSubmit. Un envoi serveur n'a pas automatiquement ces informations ; `_url` seul ne suffit pas pour son endpoint AJAX.
+Ces en-tetes sont fixes cote serveur, jamais issus du formulaire visiteur, et ne sont ajoutes que pour FormSubmit.
+Une reponse HTTP 200 du prestataire ne suffit pas : `success` doit aussi confirmer l'acceptation.
+FormSubmit peut demander une activation dans la boite destinataire ; verifier les spams et suivre uniquement un lien attendu du prestataire.
+Un refus d'activation remonte une erreur au visiteur, conserve son formulaire et journalise seulement le motif technique `activation_required`, sans coordonnees ni contenu du prestataire.
+L'acceptation par le prestataire n'est pas une preuve de remise dans Gmail. Confirmer la reception d'un message technique avant de considerer le parcours valide de bout en bout.
+Aucun mot de passe Gmail n'est necessaire. Ne jamais activer de journalisation contenant les coordonnees ou le message du visiteur.
+
 ## Surveillance des dependances
 
 Voir `DEPENDANCES_SECURITE.md` : alertes Dependabot, audit quotidien, tests de chaque proposition et validation manuelle avant fusion.
