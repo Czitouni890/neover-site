@@ -114,7 +114,12 @@ Le dernier teste des preuves reelles navigateur/serveur avec un prestataire emai
 
 ## Reception des demandes de contact
 
-Sans `CONTACT_WEBHOOK_URL`, le serveur utilise `https://formsubmit.co/ajax/contact.neover@gmail.com`.
+Le serveur utilise par defaut le formulaire Formspree `https://formspree.io/f/xbgdwbvw`, fourni par le proprietaire pour les demandes NEOVER. Le destinataire se configure dans Formspree et doit etre `contact.neover@gmail.com`.
+`CONTACT_WEBHOOK_URL` permet de remplacer cet endpoint. Le Blueprint declare aussi sa valeur ; le fonctionnement ne depend pas de la synchronisation du Blueprint si la variable est absente.
+L'email du visiteur sert au Reply-To Formspree. Les preuves antispam et les options historiques FormSubmit ne sont pas transmises a Formspree.
+Le serveur exige une reponse JSON `ok: true` avec un statut HTTP reussi avant d'annoncer le succes.
+
+Compatibilite historique, uniquement si un endpoint FormSubmit est configure explicitement :
 Le champ `_url` et les en-tetes `Origin` / `Referer` transmettent explicitement l'origine officielle de la page contact pour FormSubmit. Un envoi serveur n'a pas automatiquement ces informations ; `_url` seul ne suffit pas pour son endpoint AJAX.
 Ces en-tetes sont fixes cote serveur, jamais issus du formulaire visiteur, et ne sont ajoutes que pour FormSubmit.
 Une reponse HTTP 200 du prestataire ne suffit pas : `success` doit aussi confirmer l'acceptation.
