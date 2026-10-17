@@ -1,7 +1,33 @@
 (() => {
+  document.getElementById('logout').addEventListener('click', async event => {
+    event.currentTarget.disabled = true;
+    try {
+      const session = await fetch('/api/audience/session');
+      const data = await session.json();
+      const response = await fetch('/api/audience/logout', {
+        method: 'POST', headers: { 'x-csrf-token': data.csrf }
+      });
+      if (!response.ok) throw new Error('D\u00e9connexion indisponible. R\u00e9essayez.');
+      location.replace('/statistiques/connexion');
+    } catch (error) {
+      document.getElementById('status').textContent = error.message;
+      document.getElementById('logout').disabled = false;
+    }
+  });
+  window.addEventListener('pageshow', event => { if (event.persisted) location.reload(); });
+  let idleTimer;
+  function armIdleTimer() {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      document.body.replaceChildren();
+      location.replace('/statistiques/connexion');
+    }, 15 * 60000);
+  }
+  armIdleTimer();
   const form = document.getElementById('period');
   const status = document.getElementById('status');
   const exporter = document.getElementById('export');
+  exporter.addEventListener('click', armIdleTimer);
   let view = 'daily';
   let loaded = null;
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
@@ -26,8 +52,10 @@
     exporter.hidden = true;
     try {
       const response = await fetch('/api/audience/report?' + new URLSearchParams(new FormData(form)));
+      if (response.status === 401) { location.replace('/statistiques/connexion'); return; }
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Statistiques indisponibles.');
+      armIdleTimer();
       loaded = data;
       rows(document.getElementById('daily'), data.daily.map(row => [row.day, row.visitors ?? '\u2014', row.visits ?? '\u2014', row.views ?? '\u2014']));
       rows(document.getElementById('pages'), data.pages.map(row => [row.label, row.page, row.views]));

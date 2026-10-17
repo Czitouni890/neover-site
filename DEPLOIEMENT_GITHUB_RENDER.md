@@ -36,7 +36,22 @@ Chaque nouveau push sur la branche connectee declenchera ensuite un deploiement 
 
 Le tableau est accessible a `/statistiques`. Identifiant : `admin`.
 Le mot de passe vient de `ANALYTICS_ADMIN_PASSWORD` (16 caracteres minimum).
+La connexion passe par `/statistiques/connexion`, avec les memes identifiants qu'avant.
+L'ancienne authentification Basic n'est plus acceptee, meme pour les exports.
 Le suivi reste desactive si les secrets ou le stockage ne sont pas configures.
+
+### Protection de la connexion
+
+- Session cote serveur, cookie HttpOnly et SameSite Strict, Secure en production HTTPS.
+- Identifiant de session et jeton CSRF renouveles a chaque connexion ; aucune sauvegarde du mot de passe dans le navigateur par le site.
+- Expiration apres 15 minutes sans requete privee, avec une duree maximale de 8 heures meme en cas d'activite.
+- Bouton de deconnexion invalidant la session cote serveur, y compris une copie de son cookie.
+- 5 echecs de connexion par IP sur 15 minutes ; les consultations du tableau ne consomment pas cette limite.
+- Protection CSRF de la connexion/deconnexion ; rapports, exports et scripts prives inaccessibles sans session.
+- Pages privees non mises en cache, non indexables et sans referent transmis aux liens externes.
+- Sessions en memoire, plafonnees a 1 000 avec nettoyage periodique. Un redemarrage/deploiement deconnecte les administrateurs, sans effacer les statistiques stockees.
+- Pour plusieurs instances, remplacer ce stockage par un registre de sessions partage et des secrets partages.
+- Aucun changement des variables existantes n'est requis. Cette etape n'ajoute pas encore de double authentification.
 
 ### Stockage durable sur Render gratuit
 

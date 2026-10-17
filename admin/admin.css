@@ -19,4 +19,13 @@ button { cursor: pointer; }button[type=submit] { background: #09694f; color: whi
 .table-scroll { overflow-x: auto; }table { width: 100%; border-collapse: collapse; text-align: left; }th { background: #edf2ef; font-size: 13px; font-weight: 600; white-space: nowrap; }th,td { padding: 14px 16px; border-bottom: 1px solid #dde5df; }td:not(:first-child),th:not(:first-child) { text-align: right; }#pages-panel td:nth-child(2) { text-align: left; overflow-wrap: anywhere; }tbody tr:hover { background: #eef4f0; }.note { font-size: 13px; margin-top: 24px; max-width: 800px; }
 td:first-child { white-space: nowrap; }
 .export[hidden] { display: none; }
+.login-main { max-width: 460px; padding-top: 56px; }
+.login-main h1 { font-size: 24px; margin-bottom: 28px; }
+.login-form { display: grid; gap: 10px; }
+.login-form input { width: 100%; min-width: 0; }
+.login-form button { margin-top: 14px; }
+.login-form label:not(:first-child) { margin-top: 12px; }
+button:disabled { opacity: .6; cursor: wait; }
+#logout { margin-left: 0; }
+@media(max-width:450px) { .header-inner { gap: 12px; flex-wrap: wrap; padding-top: 8px; padding-bottom: 8px; }.header-inner button { font-size: 13px; padding: 8px 10px; } }
 @media(max-width:650px) { main { padding: 24px 16px; }.header-inner { padding: 0 16px; }.heading { display: block; }h1 { font-size: 23px; }.metrics { grid-template-columns: minmax(0,1fr); gap: 20px; }.metrics strong { font-size: 26px; }.export { margin: 0; }#period label { flex: 1; min-width: 130px; }#period input { width: 100%; }.tabs { gap: 20px; }th,td { padding: 12px; } }

@@ -1,8 +1,9 @@
 const express = require('express');
 const path = require('node:path');
 const fs = require('node:fs');
-const { createHash, createHmac, timingSafeEqual } = require('node:crypto');
+const { createHmac } = require('node:crypto');
 const { rateLimit } = require('express-rate-limit');
+const { createAdminAccess } = require('./audience-auth');
 
 const pages = {
   '/': 'Accueil', '/qui-sommes-nous.html': 'Qui sommes-nous',
@@ -86,7 +87,6 @@ function createAnalytics(options = {}) {
   }
   const enabled = Boolean(store && password.length >= 16 && secret.length >= 32);
   const clock = options.clock || (() => new Date());
-  const digest = value => createHash('sha256').update(value).digest();
   const pseudonym = (day, value) => createHmac('sha256', secret).update(`${day}:${value}`).digest('hex');
   router.use((_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
   router.get('/api/audience/config', async (_req, res) => {
@@ -114,22 +114,15 @@ function createAnalytics(options = {}) {
     }
   });
 
-  const loginLimiter = rateLimit({ windowMs: 15 * 60000, limit: 10, skipSuccessfulRequests: true, standardHeaders: 'draft-8', legacyHeaders: false });
-  function auth(req, res, next) {
-    if (!enabled) return res.status(503).type('text').send('Statistiques non configurees.');
-    if (env.RENDER === 'true' && !req.secure) return res.status(403).end();
-    const header = req.get('authorization') || '';
-    const supplied = header.startsWith('Basic ') ? Buffer.from(header.slice(6), 'base64').toString('utf8') : '';
-    if (!timingSafeEqual(digest(supplied), digest(`admin:${password}`))) {
-      res.set('WWW-Authenticate', 'Basic realm="NEOVER statistiques", charset="UTF-8"');
-      return res.status(401).end();
-    }
+  const access = createAdminAccess({ enabled, password, production: env.RENDER === 'true' || env.NODE_ENV === 'production', now: options.authNow });
+  router.use(access.router);
+  function privateHeaders(_req, res, next) {
     res.set('X-Content-Type-Options', 'nosniff');
     res.set('X-Frame-Options', 'DENY');
     res.set('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'");
     next();
   }
-  router.use(['/statistiques', '/admin-assets', '/api/audience/report', '/api/audience/export'], loginLimiter, auth);
+  router.use(['/statistiques', '/admin-assets', '/api/audience/report', '/api/audience/export'], access.protect, privateHeaders);
   router.get('/statistiques', (_req, res) => res.sendFile(path.join(__dirname, 'admin', 'index.html')));
   router.get('/admin-assets/:file', (req, res) => {
     if (!['admin.css', 'admin.js'].includes(req.params.file)) return res.status(404).end();
@@ -165,7 +158,7 @@ function createAnalytics(options = {}) {
   }
   router.get('/api/audience/report', (req, res) => report(req, res));
   router.get('/api/audience/export', (req, res) => report(req, res, true));
-  return { router, enabled, close: () => store?.close() };
+  return { router, enabled, close: () => { access.close(); store?.close(); } };
 }
 
 module.exports = { createAnalytics, sqliteStore, supabaseStore, parisDay, shiftDay };

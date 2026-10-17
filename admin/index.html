@@ -9,7 +9,7 @@
   <script src="/admin-assets/admin.js" defer></script>
 </head>
 <body>
-  <header><div class="header-inner"><a href="/" aria-label="NEOVER, retour au site"><img src="/images/logo-neover.png" alt="NEOVER" width="58" height="68"></a><span>Audience</span><a class="site-link" href="/">Voir le site</a></div></header>
+  <header><div class="header-inner"><a href="/" aria-label="NEOVER, retour au site"><img src="/images/logo-neover.png" alt="NEOVER" width="58" height="68"></a><span>Audience</span><a class="site-link" href="/">Voir le site</a><button type="button" id="logout">Se d&#233;connecter</button></div></header>
   <main>
     <div class="heading"><div><h1>Fréquentation du site</h1><p>Visites mesurées avec le consentement des visiteurs.</p></div><span class="timezone">Europe/Paris</span></div>
     <form id="period"><label>Du <input type="date" name="from" required></label><label>Au <input type="date" name="to" required></label><button type="submit">Afficher</button><a id="export" class="export" href="/api/audience/export" download>Exporter Excel (.csv)</a></form>

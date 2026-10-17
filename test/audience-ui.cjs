@@ -24,7 +24,7 @@ const { securityHeaders } = require('../security');
   let browser;
   try {
     browser = await chromium.launch({ channel: 'msedge', headless: true });
-    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, httpCredentials: { username: 'admin', password } });
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const page = await context.newPage();
     const errors = [];
     page.on('console', message => {
@@ -51,6 +51,20 @@ const { securityHeaders } = require('../security');
     }
     assert.equal(recorded, 3);
     await page.goto(base + '/statistiques');
+    await page.waitForURL('**/statistiques/connexion');
+    fs.mkdirSync('preview-ui', { recursive: true });
+    for (const width of [320, 390, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+      await page.screenshot({ path: `preview-ui/login-${width}.png`, fullPage: true });
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByLabel('Mot de passe', { exact: true }).fill('wrong');
+    await page.getByRole('button', { name: 'Se connecter', exact: true }).click();
+    await page.getByText('Identifiant ou mot de passe incorrect.', { exact: true }).waitFor();
+    await page.getByLabel('Mot de passe', { exact: true }).fill(password);
+    await page.getByRole('button', { name: 'Se connecter', exact: true }).click();
+    await page.waitForURL('**/statistiques');
     await page.waitForFunction(() => document.getElementById('views').textContent === '3');
     assert.equal(await page.locator('#today').innerText(), '1');
     assert.equal(await page.locator('#visits').innerText(), '1');
@@ -65,6 +79,11 @@ const { securityHeaders } = require('../security');
     await page.locator('#export').click();
     const download = await downloadPromise;
     assert.match(download.suggestedFilename(), /neover-pages.*\.csv$/);
+    await page.getByRole('button', { name: 'Se d\u00e9connecter', exact: true }).click();
+    await page.waitForURL('**/statistiques/connexion');
+    assert.equal((await context.request.get(base + '/api/audience/export')).status(), 401);
+    await page.goto(base + '/statistiques');
+    await page.waitForURL('**/statistiques/connexion');
     await page.goto(base + '/contact.html');
     await page.locator('#neover-audience-preferences').click();
     await page.getByRole('button', { name: 'Refuser', exact: true }).click();

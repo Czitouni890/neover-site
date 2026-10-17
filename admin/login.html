@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Connexion - NEOVER</title>
+  <link rel="stylesheet" href="/statistiques-assets/login.css">
+  <script src="/statistiques-assets/login.js" defer></script>
+</head>
+<body>
+  <header><div class="header-inner"><a href="/" aria-label="NEOVER, retour au site"><img src="/images/logo-neover.png" alt="NEOVER" width="58" height="68"></a><span>Audience</span><a class="site-link" href="/">Voir le site</a></div></header>
+  <main class="login-main">
+    <h1>Connexion aux statistiques</h1>
+    <form id="login" class="login-form" method="post" action="/api/audience/login">
+      <label for="username">Identifiant</label>
+      <input id="username" name="username" autocomplete="username" required maxlength="128" value="admin">
+      <label for="password">Mot de passe</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required maxlength="512">
+      <button type="submit" disabled>Se connecter</button>
+    </form>
+    <p id="status" role="status" aria-live="polite">Chargement...</p>
+  </main>
+</body>
+</html>

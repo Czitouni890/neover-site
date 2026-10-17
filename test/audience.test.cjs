@@ -8,7 +8,6 @@ const { randomUUID } = require('node:crypto');
 const { createAnalytics, sqliteStore, supabaseStore, parisDay } = require('../analytics');
 const password = 'a-test-password-not-for-production';
 const env = { ANALYTICS_ADMIN_PASSWORD: password, ANALYTICS_HASH_SECRET: 'test-hashing-secret-not-for-production-123456' };
-const authorization = 'Basic ' + Buffer.from(`admin:${password}`).toString('base64');
 
 async function setup(t, options = {}) {
   const filename = path.join(os.tmpdir(), `neover-audience-${randomUUID()}.sqlite`);
@@ -19,6 +18,18 @@ async function setup(t, options = {}) {
   const server = app.listen(0, '127.0.0.1');
   await new Promise(resolve => server.once('listening', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
+  let cookie = '';
+  async function login() {
+    const bootstrap = await fetch(base + '/api/audience/session');
+    const csrf = (await bootstrap.json()).csrf;
+    const initialCookie = bootstrap.headers.get('set-cookie').split(';')[0];
+    const response = await fetch(base + '/api/audience/login', {
+      method: 'POST', headers: { 'content-type': 'application/json', origin: base, 'x-csrf-token': csrf, cookie: initialCookie },
+      body: JSON.stringify({ username: 'admin', password })
+    });
+    assert.equal(response.status, 200);
+    cookie = response.headers.get('set-cookie').split(';')[0];
+  }
   t.after(async () => {
     await new Promise(resolve => { server.close(resolve); server.closeAllConnections(); });
     analytics.close();
@@ -27,7 +38,11 @@ async function setup(t, options = {}) {
   });
   return { base, store, filename,
     event: (body, origin = base) => fetch(base + '/api/audience/event', { method: 'POST', headers: { 'content-type': 'application/json', origin }, body: JSON.stringify(body) }),
-    report: (auth = authorization, query = 'from=2026-10-09&to=2026-10-09') => fetch(base + '/api/audience/report?' + query, { headers: { authorization: auth } })
+    login, get cookie() { return cookie; },
+    report: async (query = 'from=2026-10-09&to=2026-10-09') => {
+      if (!cookie) await login();
+      return fetch(base + '/api/audience/report?' + query, { headers: { cookie } });
+    }
   };
 }
 const event = (extra = {}) => ({ consent: true, visitorId: randomUUID(), sessionId: randomUUID(), eventId: randomUUID(), page: '/', ...extra });
@@ -55,11 +70,12 @@ test('rejects missing consent, invalid pages, invalid IDs and cross-site events'
 
 test('report, dashboard and CSV require credentials, and dates are validated', async t => {
   const ctx = await setup(t);
-  for (const route of ['/statistiques', '/api/audience/export', '/admin-assets/admin.js']) assert.equal((await fetch(ctx.base + route)).status, 401);
-  assert.equal((await ctx.report('Basic ' + Buffer.from('admin:wrong').toString('base64'))).status, 401);
-  for (const query of ['from=2026-02-30&to=2026-10-09', 'from=2026-10-09&to=2026-10-08', 'from=2020-01-01&to=2026-10-09']) assert.equal((await ctx.report(authorization, query)).status, 400);
+  assert.equal((await fetch(ctx.base + '/statistiques', { redirect: 'manual' })).status, 302);
+  for (const route of ['/api/audience/export', '/admin-assets/admin.js']) assert.equal((await fetch(ctx.base + route)).status, 401);
+  assert.equal((await fetch(ctx.base + '/api/audience/report', { headers: { authorization: 'Basic ' + Buffer.from('admin:wrong').toString('base64') } })).status, 401);
+  for (const query of ['from=2026-02-30&to=2026-10-09', 'from=2026-10-09&to=2026-10-08', 'from=2020-01-01&to=2026-10-09']) assert.equal((await ctx.report(query)).status, 400);
   await ctx.event(event());
-  const response = await fetch(ctx.base + '/api/audience/export?from=2026-10-09&to=2026-10-09', { headers: { authorization } });
+  const response = await fetch(ctx.base + '/api/audience/export?from=2026-10-09&to=2026-10-09', { headers: { cookie: ctx.cookie } });
   assert.equal(response.status, 200);
   assert.match(response.headers.get('content-disposition'), /\.csv/);
   assert.match(await response.text(), /"2026-10-09";"1";"1";"1"/);

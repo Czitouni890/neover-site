@@ -5,12 +5,12 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test test/contact.test.cjs test/audience.test.cjs test/security.test.cjs",
+    "test": "node --test test/contact.test.cjs test/audience.test.cjs test/security.test.cjs test/admin-auth.test.cjs",
     "test:ui": "node test/contact-ui.cjs",
     "test:images": "node test/images-ui.cjs",
     "test:antispam": "node test/antispam-ui.cjs",
     "images:optimize": "node scripts/optimize-images.cjs",
-    "check": "node --check server.js && node --check security.js && node --check antispam.js && node --check analytics.js && node --check admin/admin.js && node --check neover-export/assets/audience.js && node --check neover-export/assets/multipage.js"
+    "check": "node --check server.js && node --check security.js && node --check antispam.js && node --check analytics.js && node --check audience-auth.js && node --check admin/login.js && node --check admin/admin.js && node --check neover-export/assets/audience.js && node --check neover-export/assets/multipage.js"
   },
   "engines": {
     "node": "22.x"
@@ -20,7 +20,9 @@
     "altcha-lib": "^2.6.0",
     "express": "^4.21.2",
     "express-rate-limit": "^8.7.1",
-    "helmet": "^8.3.0"
+    "express-session": "^1.19.0",
+    "helmet": "^8.3.0",
+    "memorystore": "^1.6.8"
   },
   "devDependencies": {
     "acorn": "^8.19.0",
