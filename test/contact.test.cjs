@@ -15,13 +15,13 @@ const lead = {
   project: 'Projet confidentiel', message: 'Message strictement confidentiel', consent: true
 };
 
-async function setup(t, send, render = false, webhook = 'https://formsubmit.co/ajax/contact.neover@gmail.com') {
+async function setup(t, send, render = false, webhook = 'https://formsubmit.co/ajax/contact.neover@gmail.com', resendKey = '') {
   const logs = [];
   let calls = 0;
   const sandbox = {
     require: createRequire(serverPath), module: { exports: {} },
     __dirname: path.dirname(serverPath), URL, AbortSignal,
-    process: { env: { RENDER: render ? 'true' : undefined, CONTACT_WEBHOOK_URL: webhook } },
+    process: { env: { RENDER: render ? 'true' : undefined, CONTACT_WEBHOOK_URL: webhook, RESEND_API_KEY: resendKey } },
     console: {
       info: (...args) => logs.push(args.join(' ')),
       error: (...args) => logs.push(args.join(' '))
@@ -62,6 +62,74 @@ function assertPrivate(logs) {
     assert.equal(text.includes(value), false);
   }
 }
+
+test('Resend confirmation follows Formspree acceptance and contains no reflected message', async t => {
+  const urls = [];
+  const ctx = await setup(t, (url, options) => {
+    urls.push(url);
+    if (urls.length === 1) return Response.json({ ok: true });
+    assert.equal(url, 'https://api.resend.com/emails');
+    assert.equal(options.headers.authorization, 'Bearer test-resend-secret');
+    assert.match(options.headers['Idempotency-Key'], /^contact-confirmation\//);
+    assert.equal(options.redirect, 'error');
+    assert.ok(options.signal);
+    const payload = JSON.parse(options.body);
+    assert.equal(payload.from, 'NEOVER <contact@notifications.neover.fr>');
+    assert.deepEqual(payload.to, [lead.email]);
+    assert.equal(payload.reply_to, 'contact.neover@gmail.com');
+    for (const value of [lead.message, lead.name, lead.phone, lead.project]) {
+      assert.equal(options.body.includes(value), false);
+    }
+    return Response.json({ id: 'test-receipt' });
+  }, false, '', 'test-resend-secret');
+  assert.equal((await ctx.post()).status, 200);
+  assert.deepEqual(urls, ['https://formspree.io/f/xbgdwbvw', 'https://api.resend.com/emails']);
+  assert.match(ctx.logs.join(' '), /NEOVER_CONFIRMATION_ACCEPTED/);
+  assert.equal(ctx.logs.join(' ').includes('test-resend-secret'), false);
+  assertPrivate(ctx.logs);
+});
+
+test('confirmation failures preserve the accepted lead and never expose provider details', async t => {
+  for (const failure of [
+    () => Response.json({ message: lead.email }, { status: 403 }),
+    () => Response.json({}),
+    () => new Response('invalid-json'),
+    () => { throw new Error('test-resend-secret ' + lead.email); },
+    () => { throw new DOMException(lead.message, 'TimeoutError'); }
+  ]) {
+    await t.test('accepted lead stays successful', async t => {
+      let count = 0;
+      const ctx = await setup(t, () => ++count === 1 ? Response.json({ ok: true }) : failure(), false, '', 'test-resend-secret');
+      const response = await ctx.post();
+      assert.equal(response.status, 200);
+      assert.deepEqual(await response.json(), { ok: true });
+      assert.equal(count, 2);
+      assert.match(ctx.logs.join(' '), /NEOVER_CONFIRMATION_FAILED/);
+      assert.equal(ctx.logs.join(' ').includes('test-resend-secret'), false);
+      assertPrivate(ctx.logs);
+    });
+  }
+});
+
+test('rejected leads, spam and invalid input never trigger a confirmation', async t => {
+  const ctx = await setup(t, url => {
+    assert.equal(url, 'https://formspree.io/f/xbgdwbvw');
+    return Response.json({ ok: false }, { status: 403 });
+  }, false, '', 'test-resend-secret');
+  assert.equal((await ctx.post()).status, 502);
+  assert.equal((await ctx.post({ ...lead, website: 'spam' })).status, 200);
+  assert.equal((await ctx.post({})).status, 400);
+  assert.equal((await ctx.post({ ...lead, altcha: 'forged' })).status, 403);
+  assert.equal(ctx.calls(), 1);
+  assertPrivate(ctx.logs);
+});
+
+test('without a Resend key only the lead is transmitted', async t => {
+  const ctx = await setup(t, () => Response.json({ ok: true }), false, '');
+  assert.equal((await ctx.post()).status, 200);
+  assert.equal(ctx.calls(), 1);
+  assert.match(ctx.logs.join(' '), /NEOVER_CONFIRMATION_SKIPPED/);
+});
 
 test('Formspree is the default and receives contact fields but no legacy provider options or antispam proof', async t => {
   const ctx = await setup(t, (url, options) => {
