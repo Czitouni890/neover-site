@@ -143,6 +143,39 @@ app.post('/api/contact', (req, res, next) => {
   }
 
   console.info('NEOVER_CONTACT_SENT', JSON.stringify({ requestId }));
+  // Confirmation failure must never turn an accepted lead into a failed submission.
+  const resendKey = process.env.RESEND_API_KEY?.trim();
+  if (resendKey) {
+    try {
+      const confirmation = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        redirect: 'error',
+        headers: {
+          authorization: `Bearer ${resendKey}`,
+          'content-type': 'application/json',
+          'Idempotency-Key': `contact-confirmation/${requestId}`
+        },
+        signal: AbortSignal.timeout(5000),
+        body: JSON.stringify({
+          from: 'NEOVER <contact@notifications.neover.fr>',
+          to: [lead.email],
+          reply_to: 'contact.neover@gmail.com',
+          subject: 'NEOVER - Confirmation de votre demande',
+          text: 'Bonjour,\n\nVotre demande sur neover.fr a bien ete enregistree. Notre equipe vous recontactera pour echanger sur votre projet.\n\nVous pouvez repondre directement a cet email ou nous joindre au 09 72 73 03 95.\n\nSi vous ne connaissez pas cette demande, ignorez cet email.\n\nL\'equipe NEOVER\nhttps://neover.fr/'
+        })
+      });
+      const receipt = await confirmation.json().catch(() => null);
+      if (!confirmation.ok || typeof receipt?.id !== 'string' || !receipt.id) {
+        console.error('NEOVER_CONFIRMATION_FAILED', JSON.stringify({ requestId, reason: 'provider_rejected', status: confirmation.status }));
+      } else {
+        console.info('NEOVER_CONFIRMATION_ACCEPTED', JSON.stringify({ requestId }));
+      }
+    } catch (_error) {
+      console.error('NEOVER_CONFIRMATION_FAILED', JSON.stringify({ requestId, reason: 'unavailable' }));
+    }
+  } else {
+    console.info('NEOVER_CONFIRMATION_SKIPPED', JSON.stringify({ requestId, reason: 'not_configured' }));
+  }
   res.status(200).json({ ok: true });
 });
 
