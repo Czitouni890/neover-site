@@ -5,13 +5,13 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test test/contact.test.cjs test/audience.test.cjs test/security.test.cjs test/admin-auth.test.cjs test/http.test.cjs test/uptime.test.cjs",
+    "test": "node --test test/contact.test.cjs test/audience.test.cjs test/security.test.cjs test/admin-auth.test.cjs test/http.test.cjs test/uptime.test.cjs test/security-automation.test.cjs",
     "test:ui": "node test/contact-ui.cjs",
     "test:images": "node test/images-ui.cjs",
     "test:antispam": "node test/antispam-ui.cjs",
     "test:audience": "node test/audience-ui.cjs",
     "monitor:check": "node scripts/check-uptime.cjs",
-    "security:audit": "npm audit --package-lock-only --audit-level=moderate",
+    "security:audit": "node scripts/audit-dependencies.cjs",
     "security:check": "npm audit --omit=dev --audit-level=moderate && npm run check && npm test",
     "images:optimize": "node scripts/optimize-images.cjs",
     "check": "node --check server.js && node --check security.js && node --check antispam.js && node --check analytics.js && node --check audience-auth.js && node --check admin/login.js && node --check admin/admin.js && node --check neover-export/assets/audience.js && node --check neover-export/assets/multipage.js"
