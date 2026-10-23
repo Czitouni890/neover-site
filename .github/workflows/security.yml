@@ -30,7 +30,7 @@ jobs:
           node-version: 22.x
           cache: npm
       - name: Audit runtime and development dependencies
-        run: npm audit --package-lock-only --audit-level=moderate
+        run: npm run security:audit
 
   tests:
     name: Application Tests
@@ -38,6 +38,10 @@ jobs:
     timeout-minutes: 20
     env:
       PLAYWRIGHT_CHANNEL: chromium
+      NPM_CONFIG_FETCH_RETRIES: 2
+      NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: 2000
+      NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: 5000
+      NPM_CONFIG_FETCH_TIMEOUT: 20000
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -76,3 +80,31 @@ jobs:
       - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
           fail-on-severity: moderate
+
+  notify-failure:
+    name: Notify persistent failure
+    needs: [audit, tests]
+    if: >-
+      always() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' &&
+      (needs.audit.result == 'failure' || needs.tests.result == 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: security-failure-notification-main
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.x
+      - name: Open a single issue for investigation
+        run: node scripts/notify-security-failure.cjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          AUDIT_RESULT: ${{ needs.audit.result }}
+          TESTS_RESULT: ${{ needs.tests.result }}

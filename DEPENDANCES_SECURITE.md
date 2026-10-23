@@ -13,6 +13,32 @@
 
 ## Avant de fusionner
 
+### Relances et propositions de correction
+
+- L'audit reconnait uniquement une liste limitee d'erreurs reseau temporaires
+  (timeout, DNS temporaire, HTTP 429/502/503/504 notamment). Il fait au maximum
+  trois passages, avec attentes de 5 puis 10 secondes. Une reponse inconnue,
+  une erreur d'authentification ou une vulnerabilite reste bloquante sans relance.
+- L'installation npm en CI autorise deux nouvelles tentatives de telechargement
+  par requete. Les tests applicatifs et navigateur ne sont jamais relances
+  automatiquement pour masquer un echec.
+- Si l'audit ou les tests echouent sur main, le workflow ouvre une issue assignee
+  a Czitouni890, avec un lien vers les logs. Une issue deja ouverte n'est pas
+  dupliquee. La fermer manuellement apres verification du correctif ; elle
+  n'est pas mise a jour pour chaque nouvel echec. Les echecs de PR restent
+  visibles dans leurs controles, sans droit d'ecriture pour leur code.
+- Dependabot peut preparer une PR quand un correctif de vulnerabilite connu
+  est disponible et resoluble. Cela ne garantit ni un correctif pour chaque
+  alerte, ni la correction automatique d'un bug applicatif. Les reglages
+  Dependabot security updates sont distincts du calendrier hebdomadaire.
+- Les PR sont testees automatiquement, mais leur fusion reste manuelle et
+  soumise aux controles de branche. Aucun agent ne modifie arbitrairement le
+  code, ne force les mises a jour majeures ou ne fusionne tout seul.
+- Les emails d'alerte dependent des preferences personnelles GitHub. L'issue
+  et les logs sont consultables meme si les notifications email sont coupees.
+
+### Validation humaine
+
 1. Ouvrir la proposition Dependabot et lire le changelog, notamment les ruptures de compatibilite.
 2. Attendre les controles `Dependency Audit`, `Application Tests` et `Dependency Review` au vert.
 3. Examiner les changements de package.json/package-lock.json et les captures des tests. Pour une mise a jour majeure, verifier aussi le site localement.
