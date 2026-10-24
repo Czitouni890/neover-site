@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const app = require('../server');
+const { gzipSync } = require('node:zlib');
 
 async function setup(t) {
   const server = app.listen(0, '127.0.0.1');
@@ -53,4 +54,25 @@ test('Express 5 preserves health, HEAD handling and rejection of unparsed form b
   });
   assert.equal(response.status, 403);
   assert.deepEqual(await response.json(), { ok: false, code: 'ANTISPAM_FAILED' });
+});
+
+test('compressed request parsing rejects invalid data and keeps the server available', async t => {
+  const base = await setup(t);
+  // Exercise only the local parser, never the contact delivery endpoint.
+  const valid = await fetch(base + '/health', {
+    method: 'POST', headers: { 'content-type': 'application/json', 'content-encoding': 'gzip' },
+    body: gzipSync('{}')
+  });
+  assert.equal(valid.status, 404);
+  await valid.text();
+  for (const body of [Buffer.from('invalid-gzip'),
+    Buffer.concat([gzipSync('{}'), Buffer.from('invalid-trailing-bytes')])]) {
+    const response = await fetch(base + '/health', {
+      method: 'POST', headers: { 'content-type': 'application/json', 'content-encoding': 'gzip' }, body
+    });
+    assert.ok([400, 500].includes(response.status));
+    assert.deepEqual(await response.json(), { ok: false,
+      code: response.status === 400 ? 'INVALID_REQUEST' : 'SERVER_ERROR' });
+    assert.deepEqual(await (await fetch(base + '/health')).json(), { status: 'ok' });
+  }
 });
